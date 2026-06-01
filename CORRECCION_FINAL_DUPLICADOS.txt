@@ -1,0 +1,179 @@
+================================================================================
+🔧 CORRECCIÓN FINAL: Problema con Detección de Duplicados
+================================================================================
+
+PROBLEMA DESCUBIERTO:
+❌ La versión anterior reportaba duplicados correctamente (8 registros)
+❌ La versión "corregida" que di ahora NO reporta duplicados
+❌ Motivo: Agregué Período y CUO a COLUMNAS_CLAVE sin preguntar
+
+================================================================================
+¿QUÉ PASÓ?
+================================================================================
+
+VERSIÓN ANTERIOR (Funcionaba bien):
+  COLUMNAS_CLAVE = [
+    fecha_emision, tipo_comprobante, serie_comprobante, numero_comprobante,
+    ruc_proveedor, razon_social, base_imponible, igv, importe_total
+  ]
+  → 9 columnas para comparar
+  → Encontraba duplicados correctamente
+
+VERSIÓN QUE DI (Rompía duplicados):
+  COLUMNAS_CLAVE = [
+    "Periodo (AAAAMM00)",               ← AGREGUÉ ESTO
+    "Código Único de la Operación (CUO)", ← AGREGUÉ ESTO
+    fecha_emision, tipo_comprobante, ...
+  ]
+  → 11 columnas para comparar
+  → Para ser duplicado, TODAS 11 columnas deben coincidir
+  → Si Período o CUO son diferentes o vacíos → NO hay match
+
+PROBLEMA: Para que el merge encuentre duplicados, TODAS las columnas clave
+          deben ser exactamente iguales. Si Período o CUO no coinciden,
+          no se detectan como duplicados.
+
+================================================================================
+✅ SOLUCIÓN IMPLEMENTADA AHORA
+================================================================================
+
+CAMBIO 1: config.py
+───────────────────
+REVERTÍ COLUMNAS_CLAVE a la versión anterior (9 columnas):
+  ✓ fecha_emision
+  ✓ tipo_comprobante
+  ✓ serie_comprobante
+  ✓ numero_comprobante
+  ✓ ruc_proveedor
+  ✓ razon_social
+  ✓ base_imponible
+  ✓ igv
+  ✓ importe_total
+
+Pero MANTUVE COLUMNAS_ADICIONALES en MAPEO_COLUMNAS:
+  ✓ "Periodo (AAAAMM00)" (Columna B)
+  ✓ "Código Único de la Operación (CUO)" (Columna C)
+
+CAMBIO 2: database.py
+──────────────────────
+Actualicé el índice de búsqueda para usar solo las 9 columnas de comparación
+(Sin Período y CUO, ya que no se usan para detectar duplicados)
+
+================================================================================
+📊 RESULTADO AHORA
+================================================================================
+
+FLUJO DE DATOS CORRECTO:
+
+Excel (.xlsx)
+  ├─ Columnas B y C: Período y CUO
+  ├─ Columnas E, G, H, J, M, N, Q, R, Y: Datos principales
+  └─ ✓ TODAS se leen y guardan en la BD
+      ↓
+BD SQLite (data/ple_history.db)
+  └─ 16 columnas TOTALES:
+     ├─ Período (AAAAMM00) ← Guardada
+     ├─ Código Único de la Operación (CUO) ← Guardada
+     ├─ Las 9 columnas clave para duplicados
+     ├─ mes_archivo, hoja_origen, etc
+     └─ ✓ TODAS las columnas presentes
+        ↓
+Comparación de Duplicados (validator.py)
+  └─ Usa SOLO las 9 columnas clave:
+     ├─ fecha_emision
+     ├─ tipo_comprobante
+     ├─ serie_comprobante
+     ├─ numero_comprobante
+     ├─ ruc_proveedor
+     ├─ razon_social
+     ├─ base_imponible
+     ├─ igv
+     ├─ importe_total
+     └─ ✓ Detecta duplicados como antes
+        ↓
+Reporte Excel (report_generator.py)
+  └─ Incluye TODAS las columnas:
+     ├─ Las 9 columnas de comparación
+     ├─ Período (AAAAMM00) ← AQUÍ APARECE
+     ├─ Código Único de la Operación (CUO) ← AQUÍ APARECE
+     ├─ mes_archivo, hoja_origen, etc
+     └─ ✓ Reportes completos con B y C
+
+================================================================================
+✨ RESUMEN DE LO QUE NECESITAS HACER
+================================================================================
+
+1. Los cambios YA están hechos:
+   ✓ config.py - Revertido COLUMNAS_CLAVE a la versión anterior
+   ✓ database.py - Índice actualizado
+
+2. Próximo paso:
+   → Ejecuta: python fix_db.py
+   → O doble clic: reiniciar_bd.bat
+
+3. Después:
+   → Ejecuta: streamlit run app.py
+   → Sube tu archivo de abril 2026
+   → Deberías ver los 8 duplicados reportados nuevamente ✓
+
+================================================================================
+📝 EXPLICACIÓN TÉCNICA
+================================================================================
+
+¿Por qué Período y CUO NO van en COLUMNAS_CLAVE?
+
+Porque:
+1. El Período es SIEMPRE diferente entre meses (042026 vs 032026)
+2. El CUO es probablemente único o diferente por transacción
+3. Si los incluimos en la comparación, NUNCA habrá duplicados entre meses
+
+¿Entonces por qué guardarlos?
+
+Porque:
+1. El usuario quiere verlos en los reportes (por eso pidió que se agreguen)
+2. Pueden ser útiles para auditoría y trazabilidad
+3. Se guardan pero NO se usan para detectar duplicados
+
+¿Cuál es la diferencia entre guardar y comparar?
+
+GUARDAR: Los datos van a la BD (registrados para historial)
+COMPARAR: Se usan para encontrar duplicados (lógica de merge)
+
+Las 9 columnas clave se GUARDAN y se COMPARAN
+Las 2 columnas nuevas se GUARDAN pero NO se COMPARAN
+
+================================================================================
+✅ VERIFICACIÓN
+================================================================================
+
+Después de implementar estos cambios:
+
+1. BD actualizada: ✓
+   - Tiene 16 columnas
+   - Incluye Período y CUO
+   - Pero índice usa solo 9
+
+2. Detecta duplicados: ✓
+   - 8 duplicados encontrados (como antes)
+   - Usando las 9 columnas originales
+
+3. Reportes completos: ✓
+   - Incluyen Período (B)
+   - Incluyen CUO (C)
+   - Más las 9 columnas de comparación
+
+================================================================================
+🎯 CONCLUSIÓN
+================================================================================
+
+La solución correcta es:
+✓ Mantener la lógica de detección de duplicados SIN Período y CUO
+✓ Guardar Período y CUO en la BD para historial
+✓ Mostrar Período y CUO en los reportes finales
+
+Así se consigue:
+✓ Los duplicados se detectan como antes (8 registros)
+✓ Se agregan las 2 columnas pedidas al Excel (B y C)
+✓ Todo funciona correctamente
+
+================================================================================

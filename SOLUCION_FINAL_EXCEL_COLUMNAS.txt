@@ -1,0 +1,137 @@
+================================================================================
+✅ SOLUCIÓN FINAL: Añadir Período y CUO al Excel Descargable
+================================================================================
+
+OBJETIVO FINAL:
+✓ Excel descargable tiene Período (B) y CUO (C) como primeras columnas
+✓ Detección de duplicados mantiene su lógica actual (9 columnas)
+✓ Reportes incluyen todas las columnas en orden correcto
+
+================================================================================
+CAMBIO REALIZADO EN validator.py
+================================================================================
+
+ANTES:
+  Solo seleccionaba COLUMNAS_CLAVE para el merge
+  Resultado: Faltaban Período y CUO en el Excel
+
+AHORA:
+  Selecciona COLUMNAS_CLAVE + COLUMNAS_ADICIONALES
+  Resultado: Período y CUO están presentes en el Excel
+
+CÓDIGO ACTUALIZADO:
+
+1. Agregué lista COLUMNAS_ADICIONALES:
+   ├─ "Periodo (AAAAMM00)"
+   └─ "Código Único de la Operación (CUO)"
+
+2. En el merge, ahora incluyo estas columnas:
+   df_nuevo[COLUMNAS_CLAVE + COLUMNAS_ADICIONALES + ["hoja_origen", "mes_archivo"]]
+
+3. Reordeno columnas del resultado en orden correcto:
+   └─ Periodo y CUO primero
+   └─ Luego las 9 columnas de comparación
+   └─ Luego las columnas de origen (hoja, mes, donde_existia)
+
+================================================================================
+ESTRUCTURA FINAL DEL EXCEL
+================================================================================
+
+Hoja: Duplicados_Detalle
+
+Columnas en orden (15 total):
+ 1. Periodo (AAAAMM00)                  ← NUEVO (Columna B Excel)
+ 2. Código Único de la Operación (CUO)  ← NUEVO (Columna C Excel)
+ 3. fecha_emision                       (Columna E)
+ 4. tipo_comprobante                    (Columna G)
+ 5. serie_comprobante                   (Columna H)
+ 6. numero_comprobante                  (Columna J)
+ 7. ruc_proveedor                       (Columna M)
+ 8. razon_social                        (Columna N)
+ 9. base_imponible                      (Columna Q)
+10. igv                                 (Columna R)
+11. importe_total                       (Columna Y)
+12. hoja_en_mes_nuevo                   (De dónde viene el duplicado)
+13. mes_archivo_nuevo                   (Mes del archivo nuevo - 042026)
+14. Mes(es)_donde_hay_duplicados        (Mes histórico donde existía - 032026)
+15. hoja_en_mes(es)_anteriores          (De dónde venía en el histórico)
+
+Hoja: Resumen_por_Mes
+└─ Conteo de duplicados por mes y tipo comprobante (sin cambios)
+
+================================================================================
+FLUJO FINAL CORRECTO
+================================================================================
+
+Excel original (.xlsx) con columnas B y C
+    ↓
+excel_reader.py
+    ├─ Lee Período (B) y CUO (C)
+    ├─ Lee las 9 columnas de comparación
+    └─ Devuelve df_nuevo con todas
+    ↓
+app.py - Valida duplicados
+    ├─ Llama: detectar_duplicados(df_nuevo, df_historico)
+    ↓
+validator.py - Compara y retorna
+    ├─ Usa 9 columnas para merge → Encuentra duplicados correctamente
+    ├─ Pero INCLUYE Período y CUO en el resultado
+    ├─ Reordena columnas (Período y CUO primero)
+    └─ Retorna DataFrame completo
+    ↓
+report_generator.py - Genera Excel
+    ├─ Toma el DataFrame con todas las columnas
+    ├─ Las escribe en hoja "Duplicados_Detalle"
+    ├─ Crea resumen en "Resumen_por_Mes"
+    └─ Salva archivo para descargar
+    ↓
+Excel descargable ✓
+    ├─ Hoja 1: Duplicados con Período, CUO y resto
+    └─ Hoja 2: Resumen por mes y tipo
+
+================================================================================
+✨ RESULTADO ESPERADO
+================================================================================
+
+Cuando subes tu archivo de abril 2026:
+
+1. Detección de duplicados:
+   ✓ Encontrará 8 duplicados (como antes)
+   ✓ Usando las 9 columnas clave
+
+2. Excel descargable:
+   ✓ Primera columna: Periodo (AAAAMM00)
+   ✓ Segunda columna: Código Único de la Operación (CUO)
+   ✓ Luego las 9 columnas de comparación
+   ✓ Luego los campos de trazabilidad
+
+================================================================================
+🚀 PRÓXIMO PASO
+================================================================================
+
+1. Ya están hechos los cambios en validator.py
+2. No necesitas hacer nada manual
+3. Ejecuta tu app: streamlit run app.py
+4. Sube tu archivo de abril 2026
+5. Descarga el Excel y verifica que tenga Período y CUO
+
+Si algo no funciona:
+   → Verifica que no haya caché de Python: elimina carpeta __pycache__
+   → Reinicia Streamlit
+
+================================================================================
+📋 RESUMEN TÉCNICO
+================================================================================
+
+Cambio: validator.py
+├─ Agregué COLUMNAS_ADICIONALES = ["Periodo (AAAAMM00)", "Código Único de la Operación (CUO)"]
+├─ Incluyo estas columnas en el merge
+├─ Reordeno el resultado para que aparezcan primero
+└─ Las 9 columnas clave se mantienen igual para la comparación
+
+Efecto:
+✓ Duplicados detectados correctamente (lógica sin cambios)
+✓ Excel descargable ahora incluye B y C
+✓ Orden correcto: Período, CUO, luego el resto
+
+================================================================================
