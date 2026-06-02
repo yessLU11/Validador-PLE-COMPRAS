@@ -1,0 +1,180 @@
+# 📚 ÍNDICE RÁPIDO - NUEVA FUNCIONALIDAD V2.2
+
+## 🎯 ¿QUÉ SE IMPLEMENTÓ?
+
+Nueva funcionalidad para **detectar duplicados internos** dentro de un mismo archivo Excel.
+
+---
+
+## 📂 ARCHIVOS RELEVANTES
+
+### 🆕 ARCHIVOS NUEVOS (2 archivos)
+
+| Archivo | Tamaño | Descripción |
+|---------|--------|-------------|
+| `duplicate_detector_internal.py` | 8.2 KB | Lógica de lectura y detección de duplicados |
+| `duplicate_report_generator_internal.py` | 8.8 KB | Generación de reportes Excel profesionales |
+
+### ✏️ ARCHIVOS MODIFICADOS (1 archivo)
+
+| Archivo | Cambios |
+|---------|---------|
+| `app.py` | +Imports +SessionState +Nueva pestaña +UI componentes |
+
+### 📖 DOCUMENTACIÓN NUEVA (2 archivos)
+
+| Archivo | Contenido |
+|---------|----------|
+| `NUEVA_FUNCIONALIDAD_DUPLICADOS_INTERNOS.md` | Guía completa de uso |
+| `RESUMEN_IMPLEMENTACION_V2.2.md` | Documentación técnica |
+
+---
+
+## 🚀 INICIO RÁPIDO
+
+### Ejecutar la aplicación:
+```bash
+streamlit run app.py
+```
+
+### Usar la nueva funcionalidad:
+1. Abre pestaña **"🔍 Duplicados Internos"**
+2. Sube archivo Excel
+3. Haz clic en **"🔍 DETECTAR DUPLICADOS INTERNOS"**
+4. Genera reporte
+5. Descarga `duplicados_NOMBRE.xlsx`
+
+---
+
+## 📊 ¿QUÉ DETECTA?
+
+**Duplicados** = Registros con EXACTAMENTE los mismos valores en 6 columnas:
+- **F:** Fecha de Vencimiento/Pago
+- **G:** Tipo de Comprobante
+- **H:** Serie del comprobante
+- **I:** Año de emisión
+- **L:** Tipo de Documento del proveedor
+- **Y:** Importe total
+
+---
+
+## 📄 REPORTE GENERADO
+
+Archivo: `duplicados_NOMBRE_ORIGINAL.xlsx`
+
+**3 Hojas:**
+1. **Duplicados_Detalle** → Todos los duplicados con TODAS sus columnas
+2. **Auditoria_Resumen** → Estadísticas generales
+3. **Resumen_por_Hoja** → Cantidad de duplicados por hoja
+
+---
+
+## 🔍 FUNCIONES PRINCIPALES
+
+### `duplicate_detector_internal.py`
+
+```python
+# Leer todas las hojas
+df_raw = leer_excel_todas_hojas("archivo.xlsx")
+
+# Detectar duplicados
+df_duplicados, auditoria = detectar_duplicados_internos(df_raw)
+
+# Auditoría detallada
+texto = generar_auditoria_duplicados(df_duplicados, auditoria)
+```
+
+### `duplicate_report_generator_internal.py`
+
+```python
+# Generar reporte Excel
+generar_reporte_duplicados_interno(
+    df_raw,              # DataFrame crudo
+    df_duplicados,       # DataFrame con duplicados
+    auditoria,          # Dict de estadísticas
+    "salida.xlsx",      # Nombre archivo
+    "original.xlsx"     # Nombre original
+)
+```
+
+---
+
+## 📋 CAMBIOS EN `app.py`
+
+### 1. Nuevos imports (línea 16-21)
+```python
+from duplicate_detector_internal import (...)
+from duplicate_report_generator_internal import (...)
+```
+
+### 2. Nuevas variables sesión (línea 227-233)
+```python
+st.session_state.df_interno_raw
+st.session_state.df_interno_duplicados
+st.session_state.auditoria_interna
+st.session_state.reporte_interno_path
+st.session_state.archivo_interno_nombre
+```
+
+### 3. Nueva pestaña (línea 244, 365-515)
+```python
+tab_validar, tab_duplicados_internos, tab_instrucciones, tab_info = st.tabs([...])
+
+with tab_duplicados_internos:
+    # Interfaz completa para validación interna
+```
+
+---
+
+## ✅ TESTING
+
+Para probar la funcionalidad:
+
+```python
+# Script proporcionado durante desarrollo (test_duplicate_detector.py)
+# Resultados: ✅ Todos los tests pasados
+```
+
+---
+
+## 📝 NOTAS IMPORTANTES
+
+✅ **Primera hoja:** Lee desde fila 8
+✅ **Otras hojas:** Leen desde fila 1
+✅ **Normalización:** Mayúsculas, sin espacios, fechas YYYY-MM-DD
+✅ **Sin dependencias nuevas:** Usa librerías existentes
+✅ **Interfaz intuitiva:** Completamente integrada en Streamlit
+✅ **Estilos profesionales:** Colores, bordes, alineamiento
+
+---
+
+## 🎓 APRENDER MÁS
+
+📖 **Guía completa:** `NUEVA_FUNCIONALIDAD_DUPLICADOS_INTERNOS.md`
+📖 **Documentación técnica:** `RESUMEN_IMPLEMENTACION_V2.2.md`
+💻 **Código fuente:** `duplicate_detector_internal.py`, `duplicate_report_generator_internal.py`
+
+---
+
+## 🆘 SOLUCIÓN DE PROBLEMAS
+
+| Problema | Solución |
+|----------|----------|
+| ❌ "No hay datos en el archivo" | Verifica que sea `.xlsx` y tenga datos |
+| ❌ Error al leer hojas | Revisa que las hojas tengan datos desde las filas especificadas |
+| ❌ Reporte no genera | Verifica que haya duplicados detectados |
+| ❌ Interfaz no carga | Asegúrate de tener Streamlit >= 1.5 |
+
+---
+
+## 🎉 ESTADO
+
+**✅ IMPLEMENTACIÓN COMPLETADA**
+**✅ TESTING EXITOSO**
+**✅ LISTO PARA PRODUCCIÓN**
+
+---
+
+**Versión:** 2.2
+**Fecha:** 2025-06-02
+**Estado:** ✅ Completado

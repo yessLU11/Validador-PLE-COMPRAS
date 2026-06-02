@@ -20,6 +20,11 @@ from database import (
 from validator import detectar_duplicados
 from report_generator import generar_reporte_excel
 from config import MESES_A_MANTENER, COLUMNAS_CLAVE
+from duplicate_detector_internal import (
+    leer_excel_todas_hojas, detectar_duplicados_internos,
+    obtener_todas_columnas_originales, generar_auditoria_duplicados
+)
+from duplicate_report_generator_internal import generar_reporte_duplicados_interno
 
 # ============================================================================
 # CONFIGURACIÓN DE LA PÁGINA
@@ -222,6 +227,12 @@ if "df_nuevo" not in st.session_state:
     st.session_state.reporte_path = None
     # DataFrame con resumen de duplicados
     st.session_state.resumen_df = None
+    # Variables para validación interna (nuevo)
+    st.session_state.df_interno_raw = None
+    st.session_state.df_interno_duplicados = None
+    st.session_state.auditoria_interna = None
+    st.session_state.reporte_interno_path = None
+    st.session_state.archivo_interno_nombre = None
 
 # ============================================================================
 # ENCABEZADO PRINCIPAL
@@ -235,11 +246,12 @@ st.markdown('<p class="sub-header">Detecta duplicados comparando con los último
 # ============================================================================
 # PESTAÑAS (TABS) PRINCIPALES
 # ============================================================================
-# Divide la interfaz en 3 secciones principales:
+# Divide la interfaz en 4 secciones principales:
 # 1. Validación - Flujo principal de carga y validación
-# 2. Instrucciones - Guía de uso paso a paso
-# 3. Información - Detalles técnicos y métricas
-tab_validar, tab_instrucciones, tab_info = st.tabs(["🔎 Validación", "📖 ¿Cómo usar?", "ℹ️ Información"])
+# 2. Validar Duplicados Internos - Nueva función para detectar duplicados dentro de un Excel
+# 3. Instrucciones - Guía de uso paso a paso
+# 4. Información - Detalles técnicos y métricas
+tab_validar, tab_duplicados_internos, tab_instrucciones, tab_info = st.tabs(["🔎 Validación", "🔍 Duplicados Internos", "📖 ¿Cómo usar?", "ℹ️ Información"])
 
 # ============================================================================
 # PESTAÑA 1: VALIDACIÓN
@@ -290,11 +302,11 @@ with tab_validar:
                 # 1. Mostrar resumen (agrupado por mes y tipo comprobante)
                 if st.session_state.resumen_df is not None and not st.session_state.resumen_df.empty:
                     st.markdown("### 📈 Resumen de duplicados")
-                    st.dataframe(st.session_state.resumen_df, use_container_width=True, hide_index=True)
+                    st.dataframe(st.session_state.resumen_df, width='stretch', hide_index=True)
                 
                 # 2. Mostrar detalle (primeros 20 registros)
                 st.markdown("### 📋 Detalle de duplicados")
-                st.dataframe(st.session_state.duplicados.head(20), use_container_width=True)
+                st.dataframe(st.session_state.duplicados.head(20), width='stretch')
                 if len(st.session_state.duplicados) > 20:
                     st.caption(f"Mostrando 20 de {len(st.session_state.duplicados)} duplicados. Descarga el Excel para ver todos.")
                 
@@ -307,7 +319,7 @@ with tab_validar:
                             data=f,
                             file_name=os.path.basename(st.session_state.reporte_path),
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            use_container_width=True,
+                            width='stretch',
                             type="primary"
                         )
             
@@ -317,7 +329,7 @@ with tab_validar:
             # Este sirve para agregar el mes al historial incluso si tiene duplicados, asumiendo que el usuario ya revisó el reporte y decidió proceder.
             if st.session_state.duplicados is not None:
                 st.markdown('<div class="card">', unsafe_allow_html=True)
-                if st.button("✅ CONFIRMAR Y AGREGAR AL HISTORIAL", use_container_width=True, type="primary"):
+                if st.button("✅ CONFIRMAR Y AGREGAR AL HISTORIAL", width='stretch', type="primary"):
                     try:
                         # Intentar agregar el mes a la BD
                         exito, mes_eliminado = agregar_mes(
@@ -351,7 +363,161 @@ with tab_validar:
 
 
 # ============================================================================
-# PESTAÑA 2: GUÍA DE INSTRUCCIONES
+# PESTAÑA 2: VALIDAR DUPLICADOS INTERNOS
+# ============================================================================
+# Nueva función: Detecta duplicados DENTRO de un mismo archivo Excel
+# Lee múltiples hojas y compara registros basándose en columnas clave
+with tab_duplicados_internos:
+    st.markdown("## 🔍 Validador de Duplicados Internos")
+    st.markdown("Sube un archivo Excel para detectar duplicados **dentro del mismo archivo** (comparando todas las hojas)")
+    
+    # Sección de carga
+    st.markdown("---")
+    st.markdown("### 📂 Cargar archivo")
+    
+    archivo_interno = st.file_uploader(
+        "Selecciona un archivo Excel (.xlsx)",
+        type=["xlsx"],
+        key="file_uploader_interno",
+        help="El sistema leerá todas las hojas y detectará duplicados"
+    )
+    
+    if archivo_interno is not None:
+        nombre_archivo = archivo_interno.name
+        temp_path_interno = f"uploads/{nombre_archivo}_interno"
+        
+        # Guardar archivo temporal
+        with open(temp_path_interno, "wb") as f:
+            f.write(archivo_interno.getbuffer())
+        
+        # Leer el archivo
+        with st.spinner("📖 Leyendo archivo Excel..."):
+            try:
+                df_raw = leer_excel_todas_hojas(temp_path_interno)
+                st.session_state.df_interno_raw = df_raw
+                st.session_state.archivo_interno_nombre = nombre_archivo
+                st.success(f"✅ Archivo cargado: **{nombre_archivo}** ({len(df_raw)} registros leídos)")
+            except Exception as e:
+                st.error(f"❌ Error al leer archivo: {str(e)}")
+                st.session_state.df_interno_raw = None
+    
+    # Sección de validación
+    if st.session_state.df_interno_raw is not None and not st.session_state.df_interno_raw.empty:
+        st.markdown("---")
+        st.markdown("### 🔍 Analizar duplicados")
+        
+        if st.button("🔍 DETECTAR DUPLICADOS INTERNOS", width='stretch', type="primary"):
+            with st.spinner("🔄 Detectando duplicados..."):
+                try:
+                    # Detectar duplicados
+                    df_dups, auditoria = detectar_duplicados_internos(st.session_state.df_interno_raw)
+                    st.session_state.df_interno_duplicados = df_dups
+                    st.session_state.auditoria_interna = auditoria
+                    
+                    # Mensaje de resultado
+                    if df_dups.empty:
+                        st.success("✅ **Sin duplicados encontrados** - El archivo está limpio")
+                    else:
+                        st.warning(f"⚠️ **{len(df_dups)} registros duplicados** encontrados en {auditoria.get('grupos_duplicados', 0)} grupos")
+                
+                except Exception as e:
+                    st.error(f"❌ Error al detectar duplicados: {str(e)}")
+        
+        # Mostrar resultados
+        if st.session_state.df_interno_duplicados is not None:
+            st.markdown("---")
+            st.markdown("### 📊 Resultados")
+            
+            # Auditoría
+            if st.session_state.auditoria_interna:
+                auditoria = st.session_state.auditoria_interna
+                
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("📋 Total de filas", auditoria.get('total_filas', 0))
+                with col2:
+                    st.metric("⚠️ Duplicados encontrados", auditoria.get('total_duplicados', 0))
+                with col3:
+                    st.metric("📊 Grupos únicos", auditoria.get('grupos_duplicados', 0))
+                
+                # Tabla de duplicados por hoja
+                if auditoria.get('duplicados_por_hoja'):
+                    st.markdown("#### Duplicados por hoja:")
+                    tabla_hojas = pd.DataFrame([
+                        {"Hoja": hoja, "Cantidad": cantidad}
+                        for hoja, cantidad in auditoria['duplicados_por_hoja'].items()
+                    ])
+                    st.dataframe(tabla_hojas, width='stretch', hide_index=True)
+            
+            # Mostrar duplicados (primeros 20)
+            if not st.session_state.df_interno_duplicados.empty:
+                st.markdown("#### Primeros registros duplicados:")
+                
+                # Mostrar solo columnas relevantes
+                cols_mostrar = [col for col in st.session_state.df_interno_duplicados.columns 
+                               if not (isinstance(col, str) and col.startswith("_"))]
+                df_mostrar = st.session_state.df_interno_duplicados[cols_mostrar].head(20)
+                
+                st.dataframe(df_mostrar, width='stretch', hide_index=True)
+                
+                if len(st.session_state.df_interno_duplicados) > 20:
+                    st.caption(f"📋 Mostrando 20 de {len(st.session_state.df_interno_duplicados)} duplicados. Descarga el Excel para ver todos.")
+                
+                # Botón para generar reporte
+                st.markdown("---")
+                if st.button("📥 Generar Reporte Excel", width='stretch', type="primary"):
+                    with st.spinner("⏳ Generando reporte Excel..."):
+                        try:
+                            # Generar nombre de salida
+                            nombre_base = os.path.splitext(st.session_state.archivo_interno_nombre)[0]
+                            nombre_salida = f"reportes/duplicados_{nombre_base}.xlsx"
+                            
+                            # Si ya existe, agregar timestamp
+                            if os.path.exists(nombre_salida):
+                                import time
+                                timestamp = int(time.time())
+                                nombre_salida = f"reportes/duplicados_{nombre_base}_{timestamp}.xlsx"
+                            
+                            # Generar reporte
+                            generar_reporte_duplicados_interno(
+                                st.session_state.df_interno_raw,
+                                st.session_state.df_interno_duplicados,
+                                st.session_state.auditoria_interna,
+                                nombre_salida,
+                                st.session_state.archivo_interno_nombre
+                            )
+                            
+                            st.session_state.reporte_interno_path = nombre_salida
+                            st.success(f"✅ Reporte generado: **{os.path.basename(nombre_salida)}**")
+                        
+                        except Exception as e:
+                            st.error(f"❌ Error generando reporte: {str(e)}")
+            
+            # Descargar reporte
+            if st.session_state.reporte_interno_path and os.path.exists(st.session_state.reporte_interno_path):
+                st.markdown("---")
+                with open(st.session_state.reporte_interno_path, "rb") as f:
+                    st.download_button(
+                        label="📥 Descargar Reporte Excel Completo",
+                        data=f,
+                        file_name=os.path.basename(st.session_state.reporte_interno_path),
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        width='stretch'
+                    )
+            
+            # Mostrar auditoría detallada (expandible)
+            with st.expander("📋 Ver auditoría detallada"):
+                if st.session_state.auditoria_interna:
+                    texto_auditoria = generar_auditoria_duplicados(
+                        st.session_state.df_interno_duplicados,
+                        st.session_state.auditoria_interna
+                    )
+                    st.code(texto_auditoria, language="text")
+
+
+
+# ============================================================================
+# PESTAÑA 3: GUÍA DE INSTRUCCIONES
 # ============================================================================
 # Proporciona un manual completo del uso de la aplicación con pasos
 # detallados, requisitos y advertencias. Utiliza expandibles para
@@ -474,7 +640,7 @@ with tab_instrucciones:
     
     st.markdown("</div>", unsafe_allow_html=True)
 
-# ======================= TAB: INFORMACIÓN =======================
+# ======================= PESTAÑA 4: INFORMACIÓN =======================
 with tab_info:
     st.markdown('<div class="card">', unsafe_allow_html=True)
     
@@ -551,7 +717,7 @@ with tab_info:
 
 
 # ============================================================================
-# PESTAÑA 3: INFORMACIÓN Y MÉTRICAS
+# PESTAÑA 4: INFORMACIÓN Y MÉTRICAS
 # ============================================================================
 # Proporciona información sobre seguridad, almacenamiento de datos,
 # flujo de trabajo recomendado y métricas actuales del sistema.
@@ -702,7 +868,7 @@ with st.sidebar:
                 st.session_state.resumen_df = None
     
     if st.session_state.df_nuevo is not None:
-        if st.button("🔍 VALIDAR DUPLICADOS", use_container_width=True, type="primary"):
+        if st.button("🔍 VALIDAR DUPLICADOS", width='stretch', type="primary"):
             with st.spinner("Comparando con histórico..."):
                 df_historico = cargar_historico_completo()
                 df_historico = df_historico[df_historico["mes_archivo"] != st.session_state.mes_nuevo]
@@ -732,7 +898,7 @@ with st.sidebar:
     # Sección: Gestión
     st.markdown('<p class="sidebar-title">⚙️ Gestión</p>', unsafe_allow_html=True)
     
-    if st.button("🗑️ Eliminar último mes", use_container_width=True, help="Quita el mes más reciente agregado"):
+    if st.button("🗑️ Eliminar último mes", width='stretch', help="Quita el mes más reciente agregado"):
         ultimo = eliminar_ultimo_mes()
         if ultimo:
             st.success(f"Mes {ultimo} eliminado")
@@ -764,7 +930,7 @@ with st.sidebar:
                     os.remove(p)
             st.rerun()
     
-    if st.button("🔥 Eliminar toda BD", use_container_width=True):
+    if st.button("🔥 Eliminar toda BD", width='stretch'):
         st.warning("⚠️ IRREVERSIBLE - ¿Confirmas?")
         col1, col2 = st.columns(2)
         with col1:
