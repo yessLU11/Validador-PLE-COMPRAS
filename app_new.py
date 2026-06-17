@@ -1,4 +1,6 @@
-# app.py - Validador PLE Compras v2.1
+# app.new.py - Versión con UI mejorada, resumen de duplicados y gestión avanzada
+# 
+#  - Validador PLE Compras v2.1
 import streamlit as st
 import pandas as pd
 import os
@@ -10,6 +12,12 @@ from database import (
     cargar_historico_completo, eliminar_ultimo_mes,
     eliminar_toda_base_datos, cargar_multiples_archivos
 )
+from conciliador import (
+    leer_todas_hojas_conciliacion,
+    conciliar_archivos,
+    generar_reporte_conciliacion
+)
+
 from validator import detectar_duplicados
 from report_generator import generar_reporte_excel
 from config import MESES_A_MANTENER, COLUMNAS_CLAVE

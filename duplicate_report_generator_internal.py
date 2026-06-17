@@ -1,10 +1,12 @@
 # ============================================================================
 # duplicate_report_generator_internal.py
 # ============================================================================
-# Descripción: Genera reporte Excel con duplicados encontrados.
+# Descripción: Genera reporte Excel con duplicados encontrados dentro de un mismo archivo.
 # Crea archivo con dos hojas:
 #   1. Duplicados_Detalle: Todas las columnas + hoja_origen + fila_original
 #   2. Auditoria_Resumen: Estadísticas de duplicados
+# Se relaciona con excel_reader.py para obtener los datos leídos desde Excel,
+# con database.py para cargar datos históricos y con report_generator.py para generar el reporte final.
 # ============================================================================
 
 import pandas as pd
@@ -38,7 +40,7 @@ def generar_reporte_duplicados_interno(
     df_detalle = df_duplicados.copy()
     
     # Reordenar columnas: metadata primero, luego datos originales
-    cols_metadata = ["hoja_origen", "numero_fila_original"]
+    cols_metadata = ["Hoja_origen", "Fila Original"]
     
     # Columnas de datos originales (excluir las normalizadas y metadata)
     cols_datos = [col for col in df_detalle.columns 
@@ -62,65 +64,14 @@ def generar_reporte_duplicados_interno(
     mapeo_nombres = {
         "hoja_origen": "Hoja Origen",
         "numero_fila_original": "Fila Original",
-        # Aquí agrego el mapeo de las columnas originales a los nombres que quiero mostrar en el reporte. Por ejemplo, si la columna original se llama "Descripción" y quiero que en el reporte se muestre como "Descripción", entonces agrego una entrada en el diccionario así: "Descripción": "Descripción". Hago esto para todas las columnas de datos originales que quiero mostrar en el reporte, asegurándome de que los nombres sean claros y profesionales para el usuario final.
-        # Ejemplo de mapeo para algunas columnas (debes completar esto con todas las columnas que quieras mostrar en el reporte):
-        "Descripción": "Descripción",
-        "Periodo (AAAAMM00)": "Periodo (AAAAMM00)",
-        "Código Único de la Operación (CUO)": "CUO",
-        "Número correlativo del asiento contable identificado en el campo 2, cuando se utilice el CUO.": "Número correlativo del asiento contable",
-        "Fecha de emisión del comprobante de pago o documento": "Fecha de emisión",
-        "Fecha de Vencimiento o Fecha de Pago": "Fecha de Vencimiento/Pago",
-        "Tipo de Comprobante de Pago o Documento": "Tipo de Comprobante/Documento",
-        "Serie del comprobante de pago o documento.": "Serie del comprobante",
-        "Año de emisión de la DUA o DSI": "Año de emisión DUA/DSI",
-        "Número del comprobante de pago o documento o número de orden del formulario.": "Número del comprobante/documento",
-        "En caso de optar por anotar el importe total de las operaciones diarias...en forma consolidada, registrar el número final": "Número final (consolidado)",
-        "Tipo de Documento de Identidad del proveedor": "Tipo de Documento de Identidad",   
-        "Número de RUC del proveedor o número de documento de Identidad, según corresponda.": "Num de RUC o Doc. de Identidad",
-        "Apellidos y nombres, denominación o razón social  del proveedor. En caso de personas naturales se debe consignar los datos en el siguiente orden: apellido paterno, apellido materno y nombre completo.": "Proveedor (Apellidos y Nombres o Razón Social)",
-        "Base imponible de las adquisiciones gravadas ... destinadas exclusivamente a operaciones gravadas y/o de exportación": "Base imponible (gravadas exclusivas)",
-        "Monto del Impuesto General a las Ventas y/o Impuesto de Promoción Municipal": "Monto IGV/IPM",
-        "Base imponible de las adquisiciones gravadas ... destinadas a operaciones gravadas y/o de exportación y a operaciones no gravadas": "Base imponible (gravadas mixtas)",
-        "Base imponible de las adquisiciones gravadas que no dan derecho a crédito fiscal …": "Base imponible (no dan derecho a crédito fiscal)",
-        "Valor de las adquisiciones no gravadas": "Valor de adquisiciones no gravadas",
-        "Monto del Impuesto Selectivo al Consumo en los casos en que el sujeto pueda utilizarlo como deducción.": "Monto ISC (deducible)",
-        "Impuesto al consumo de las bolsas de plastico": "Monto impuesto bolsas plástico",
-        "Otros conceptos, tributos y cargos que no formen parte de la base imponible.": "Otros conceptos/tributos/cargos",
-        "Importe total de las adquisiciones registradas según comprobante de pago.": "Importe total de adquisiciones",
-        "Código de la Moneda (Tabla 4)": "Código de la Moneda",
-        "Tipo de cambio": "Tipo de cambio",
-        "Fecha de emisión del comprobante de pago que se modifica": "Fecha de emisión del comprobante modificado",
-        "Tipo de comprobante de pago que se modifica": "Tipo de comprobante modificado",
-        "Número de serie del comprobante de pago que se modifica": "Número de serie del comprobante modificado",
-        "Código dependencia aduanera": "Cód dependencia aduanera",
-        "Número del comprobante de pago que se modifica": "Num del comprobante modificado",
-        "Fecha de emisión de la Constancia de Depósito de Detracción": "Fecha de emisión de la Constancia de Depósito de Detracción",
-        "Número de la Constancia de Depósito de Detracción": "Número de la Constancia de Depósito de Detracción",
-        "Marca del comprobante de pago sujeto a retención": "Marca del comprobante sujeto a retención",
-        "Clasificación de los bienes y servicios adquiridos (Tabla 30)": "Clasificación de bienes y servicios",
-        "Identificación del Contrato o del proyecto en el caso de los Operadores de las sociedades irregulares": "Identificación del Contrato o proyecto",
-        "Error tipo 1: inconsistencia en el tipo de cambio": "Error tipo 1: inconsistencia en el tipo de cambio",
-        "Error tipo 2: inconsistencia por proveedores no habidos": "Error tipo 2: inconsistencia por proveedores no habidos",
-        "Error tipo 3: inconsistencia por proveedores que renunciaron a la exoneración del Apéndice I del IGV": "Error tipo 3: inconsistencia por proveedores que renunciaron a la exoneración del Apéndice I del IGV",
-        "Error tipo 4: inconsistencia por DNIs que fueron utilizados en las Liquidaciones de Compra": "Error tipo 4: inconsistencia por DNIs que fueron utilizados en las Liquidaciones de Compra",
-        "Indicador de Comprobantes de pago cancelados con medios de pago": "Indicador de Comprobantes de pago cancelados con medios de pago",
-        "Estado que identifica la oportunidad de la anotación o indicación si ésta corresponde a un ajuste.": "Estado de anotación o ajuste"
     }
 
-    def _base_col_name(col_name):
-        if isinstance(col_name, str) and "__dup_" in col_name:
-            return col_name.rsplit("__dup_", 1)[0]
-        return col_name
-
-    rename_map = {
-        col: mapeo_nombres[_base_col_name(col)]
-        for col in df_detalle.columns
-        if _base_col_name(col) in mapeo_nombres
+    # Renombrar solo las columnas de metadata
+    rename_meta = {
+        "hoja_origen": "Hoja Origen",
+        "numero_fila_original": "Fila Original"
     }
-
-    # Renombrar columnas existentes y saltar las que no estén presentes
-    df_detalle = df_detalle.rename(columns=rename_map, errors="ignore")
-
+    df_detalle = df_detalle.rename(columns=rename_meta, errors="ignore")
     
     # Crear archivo Excel
     with pd.ExcelWriter(nombre_archivo_salida, engine="openpyxl") as writer:

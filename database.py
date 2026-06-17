@@ -1,6 +1,13 @@
+ # 
  # Manejo de SQLite (crear tablas, agregar mes, eliminar, consultar)
 # database.py
 # database.py
+# Este módulo se encarga de toda la interacción con la base de datos SQLite.
+# Funciones para inicializar la base de datos, agregar nuevos meses, eliminar meses antiguos.
+# También incluye funciones para cargar datos históricos y eliminar toda la base de datos si es necesario.
+# Se relaciona con fix_db.py para reinicializar la base de datos y 
+# con duplicate_detector_internal.py para cargar los datos leídos desde Excel.
+# ============================================================================
 import sqlite3
 import pandas as pd
 import os

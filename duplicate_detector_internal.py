@@ -67,12 +67,15 @@ def leer_excel_todas_hojas(archivo_excel: str) -> pd.DataFrame:
     
     # Mapeo de columnas (F=5, G=6, H=7, I=8, L=11, Y=24, más todas las demás)
     columnas_duplicado = {
-        "F": 5,   # Fecha de Vencimiento o Fecha de Pago
-        "G": 6,   # Tipo de Comprobante de Pago o Documento
+        #"F": 5,   # Fecha de Vencimiento o Fecha de Pago
+        #"G": 6,   # Tipo de Comprobante de Pago o Documento
         "H": 7,   # Serie del comprobante de pago o documento
-        "I": 8,   # Año de emisión de la DUA o DSI
-        "L": 11,  # Tipo de Documento de Identidad del proveedor
+        "J": 9,   # Número del comprobante de pago o documento
+        #"I": 8,   # Año de emisión de la DUA o DSI
+        #"L": 11,  # Tipo de Documento de Identidad del proveedor
+        "M": 12,  # RUC del proveedor
         "Y": 24   # Importe total de las adquisiciones
+        
     }
     
     for idx_hoja, nombre_hoja in enumerate(hojas):
@@ -82,15 +85,27 @@ def leer_excel_todas_hojas(archivo_excel: str) -> pd.DataFrame:
             
             df = pd.read_excel(archivo_excel, sheet_name=nombre_hoja, header=None)
             
-            # En la primera hoja, la fila 2 del Excel contiene los nombres reales de columna.
-            header_row = None
-            if idx_hoja == 0 and df.shape[0] > 1:
-                header_row = df.iloc[1].tolist()
-            
-            df = df.iloc[fila_inicio:, :].copy()  # Leer desde fila especificada
+            #Solo la primera hoja define los nombres de columnas, las demás se leen sin nombres (header=None) y se les asignan nombres únicos internos
+            # Solo la primera hoja define los nombres de columna
+            if idx_hoja == 0:
+                if df.shape[0] > 1:
+                    header_row = df.iloc[1].tolist()   # Guardamos los nombres
+                else:
+                    header_row = None
+            else:
+                # Para las demás hojas, usar el mismo header_row de la primera
+                header_row = header_row if 'header_row' in locals() else None
+
+            df = df.iloc[fila_inicio:, :].copy()
             if header_row is not None:
+                # Asegurar que el número de columnas coincida (rellenar con nombres genéricos si faltan)
+                num_cols_df = df.shape[1]
+                if len(header_row) < num_cols_df:
+                    header_row = header_row + [f"Col_{i}" for i in range(len(header_row), num_cols_df)]
+                elif len(header_row) > num_cols_df:
+                    header_row = header_row[:num_cols_df]
                 df.columns = _make_unique_headers(header_row)
-            
+
             if df.empty or df.shape[0] == 0:
                 continue
             
@@ -121,7 +136,7 @@ def detectar_duplicados_internos(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict]:
     """
     Detecta duplicados DENTRO del DataFrame.
     
-    Compara usando columnas: F, G, H, I, L, Y (normalizadas).
+    Compara usando columnas: H, J, M, Y (normalizadas).
     Retorna:
     - DataFrame con todas las filas duplicadas (incluye TODAS las columnas originales)
     - Dict con auditoría (cantidad de duplicados, por hoja, etc.)
@@ -131,7 +146,7 @@ def detectar_duplicados_internos(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict]:
         return pd.DataFrame(), {}
     
     # Crear "clave de duplicado" con las columnas normalizadas
-    columnas_clave_norm = ["_norm_F", "_norm_G", "_norm_H", "_norm_I", "_norm_L", "_norm_Y"]
+    columnas_clave_norm = ["_norm_H", "_norm_J", "_norm_M", "_norm_Y"]
     
     # Verificar que existan las columnas normalizadas
     columnas_existentes = [col for col in columnas_clave_norm if col in df.columns]

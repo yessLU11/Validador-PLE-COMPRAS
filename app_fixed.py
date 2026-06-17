@@ -1,3 +1,4 @@
+# app_fixed.py - Versión corregida con mejoras en validación, manejo de errores y UX
 # ============================================================================
 # app.py - APLICACIÓN PRINCIPAL VALIDADOR PLE COMPRAS
 # ============================================================================

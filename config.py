@@ -1,3 +1,4 @@
+# config.py - Configuración de parámetros clave para el validador PLE Compras
 # Parámetros: columnas clave, nombres de hojas, meses a mantener
 
 # config.py
@@ -35,8 +36,8 @@ MAPEO_COLUMNAS = {
 }
 
 HOJA_PRINCIPAL = "8.1"
-HOJA_SOCIALES = "PROGRAMAS SOCIALES"
+HOJA_SOCIALES = "Programas Sociales"
 FILA_INICIO_PRINCIPAL = 8   # datos empiezan fila 8
-FILA_INICIO_SOCIALES = 2 # datos empiezan fila 2
+FILA_INICIO_SOCIALES = 1 # datos empiezan fila 2
 
 MESES_A_MANTENER = 12 

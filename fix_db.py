@@ -1,3 +1,5 @@
+#fix_db.py - Script para eliminar la BD antigua y reinicializar con el nuevo esquema
+# Este script se ejecuta para limpiar cualquier base de datos corrupta o con el esquema antiguo
 """
 Script para eliminar la BD antigua y reinicializar con el nuevo esquema
 """

@@ -24,6 +24,11 @@ from duplicate_detector_internal import (
     leer_excel_todas_hojas, detectar_duplicados_internos,
     obtener_todas_columnas_originales, generar_auditoria_duplicados
 )
+from conciliador import (
+    leer_todas_hojas_conciliacion,
+    conciliar_archivos,
+    generar_reporte_conciliacion
+)
 from duplicate_report_generator_internal import generar_reporte_duplicados_interno
 
 # ============================================================================
@@ -251,8 +256,14 @@ st.markdown('<p class="sub-header">Detecta duplicados comparando con los último
 # 2. Validar Duplicados Internos - Nueva función para detectar duplicados dentro de un Excel
 # 3. Instrucciones - Guía de uso paso a paso
 # 4. Información - Detalles técnicos y métricas
-tab_validar, tab_duplicados_internos, tab_instrucciones, tab_info = st.tabs(["🔎 Validación", "🔍 Duplicados Internos", "📖 ¿Cómo usar?", "ℹ️ Información"])
 
+tab_validar, tab_duplicados_internos, tab_conciliacion, tab_instrucciones, tab_info = st.tabs([
+    "🔎 Validación",
+    "🔍 Duplicados Internos",
+    "🔁 Conciliación",
+    "📖 ¿Cómo usar?",
+    "ℹ️ Información"
+])
 # ============================================================================
 # PESTAÑA 1: VALIDACIÓN
 # ============================================================================
@@ -514,8 +525,74 @@ with tab_duplicados_internos:
                     )
                     st.code(texto_auditoria, language="text")
 
+# ============================================================================
+# PESTAÑA: CONCILIACIÓN
+# ============================================================================
+with tab_conciliacion:
+    st.markdown("## 🔁 Conciliación de PLE Compras")
+    st.markdown("Sube dos archivos Excel y especifica la fila donde comienzan los datos (1‑based).")
 
+    col1, col2 = st.columns(2)
+    with col1:
+        archivo1 = st.file_uploader("📂 Archivo 1 (base)", type=["xlsx"], key="conc1")
+        fila1 = st.number_input("Fila de inicio (Archivo 1)", min_value=1, value=1, step=1, key="fila1")
+    with col2:
+        archivo2 = st.file_uploader("📂 Archivo 2 (comparar)", type=["xlsx"], key="conc2")
+        fila2 = st.number_input("Fila de inicio (Archivo 2)", min_value=1, value=1, step=1, key="fila2")
 
+    if archivo1 and archivo2:
+        if st.button("🔍 Conciliar", type="primary"):
+            with st.spinner("Procesando archivos..."):
+                try:
+                    path1 = f"uploads/conc_{archivo1.name}"
+                    path2 = f"uploads/conc_{archivo2.name}"
+                    with open(path1, "wb") as f:
+                        f.write(archivo1.getbuffer())
+                    with open(path2, "wb") as f:
+                        f.write(archivo2.getbuffer())
+
+                    df1 = leer_todas_hojas_conciliacion(path1, fila_inicio=fila1)
+                    df2 = leer_todas_hojas_conciliacion(path2, fila_inicio=fila2)
+
+                    resumen, solo1, solo2 = conciliar_archivos(
+                        df1, df2,
+                        nombre1=archivo1.name,
+                        nombre2=archivo2.name
+                    )
+
+                    st.success("✅ Conciliación completada")
+                    st.markdown("### 📊 Resumen")
+                    df_resumen = pd.DataFrame({
+                        "Concepto": ["Total registros (serie)", "IDs únicos", "Registros solo en este archivo", "Registros en común", "Diferencias totales"],
+                        archivo1.name: [resumen['total_registros_1'], resumen['ids_unicos_1'], resumen['solo_en_1'], resumen['comunes'], resumen['diferencias_totales']],
+                        archivo2.name: [resumen['total_registros_2'], resumen['ids_unicos_2'], resumen['solo_en_2'], resumen['comunes'], resumen['diferencias_totales']]
+                    })
+                    st.dataframe(df_resumen, use_container_width=True, hide_index=True)
+
+                    nombre_salida = f"reportes/conciliacion_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+                    generar_reporte_conciliacion(
+                        resumen, solo1, solo2,
+                        df1, df2,  # <-- Pasar los DataFrames originales
+                        archivo1.name, archivo2.name,
+                        nombre_salida
+                    )
+
+                    with open(nombre_salida, "rb") as f:
+                        st.download_button(
+                            label="📥 Descargar Reporte Excel",
+                            data=f,
+                            file_name=os.path.basename(nombre_salida),
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            use_container_width=True
+                        )
+
+                    os.remove(path1)
+                    os.remove(path2)
+
+                except Exception as e:
+                    st.error(f"❌ Error: {str(e)}")
+                    import traceback
+                    st.code(traceback.format_exc())
 # ============================================================================
 # PESTAÑA 3: GUÍA DE INSTRUCCIONES
 # ============================================================================
