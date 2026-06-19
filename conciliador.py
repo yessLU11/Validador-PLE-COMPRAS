@@ -379,23 +379,25 @@ def _aplicar_formato_encabezado(ws, row=1):
             cell.alignment = Alignment(horizontal='center', vertical='center')
             cell.border = border
 
-
-def _escribir_dataframe_con_formato(ws, df):
+# Se modifico para que acepte el parametro start_row  así insertar tablas en cualquier fila 
+def _escribir_dataframe_con_formato(ws, df, start_row=1):
     """
-    Escribe un DataFrame en una hoja de cálculo y aplica formato a los encabezados.
+    Escribe un DataFrame en una hoja de cálculo a partir de la fila start_row,
+    aplicando formato a los encabezados (que estarán en start_row).
     """
     # Encabezados
     for col_idx, col_name in enumerate(df.columns, 1):
-        ws.cell(row=1, column=col_idx, value=col_name)
+        ws.cell(row=start_row, column=col_idx, value=col_name)
 
     # Datos
-    for row_idx, row_data in enumerate(df.values, 2):
+    for row_idx, row_data in enumerate(df.values, start_row + 1):
         for col_idx, value in enumerate(row_data, 1):
             ws.cell(row=row_idx, column=col_idx, value=value)
 
-    _aplicar_formato_encabezado(ws, row=1)
+    # Aplicar formato a la fila de encabezados
+    _aplicar_formato_encabezado(ws, row=start_row)
 
-    # Ajustar ancho de columnas (máx 50)
+    # Ajustar ancho de columnas (opcional, pero se puede hacer una vez por hoja)
     for col in ws.columns:
         max_len = 0
         col_letter = get_column_letter(col[0].column)
@@ -407,3 +409,158 @@ def _escribir_dataframe_con_formato(ws, df):
                     pass
         adjusted_width = min(max_len + 2, 50)
         ws.column_dimensions[col_letter].width = adjusted_width
+
+# ------------------------------------------------------------
+# 5. REPORTE DE PRESENTES VS NO PRESENTES EN SIRE
+# ------------------------------------------------------------
+
+# ------------------------------------------------------------
+# 5. REPORTE DE PRESENTES VS NO PRESENTES EN SIRE (CORREGIDO)
+# ------------------------------------------------------------
+
+# ------------------------------------------------------------
+# 5. REPORTE DE PRESENTES VS NO PRESENTES EN SIRE (CORREGIDO)
+# ------------------------------------------------------------
+
+def generar_reporte_presentes_no_presentes(df_sire, df_ple, nombre_sire, nombre_ple, ruta_salida):
+    """
+    Genera un reporte Excel que muestra, por tipo de documento:
+    - Cuántos registros del PLE (archivo 2) están presentes en SIRE (archivo 1)
+    - Cuántos NO están presentes
+    - Detalle de TODAS las filas para cada tipo (incluyendo duplicados)
+    """
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    # Verificar que tengan las columnas necesarias
+    required_cols = ['ID_CONCILIACION', 'TipoDoc_Norm']
+    for col in required_cols:
+        if col not in df_sire.columns or col not in df_ple.columns:
+            raise ValueError(f"Ambos DataFrames deben tener la columna '{col}'")
+
+    wb = Workbook()
+    wb.remove(wb.active)
+
+    # ---------- HOJA 1: Resumen ----------
+    ws_resumen = wb.create_sheet("Resumen")
+
+    # Título
+    ws_resumen['A1'] = 'RESUMEN: REGISTROS DEL PLE PRESENTES / NO PRESENTES EN SIRE'
+    ws_resumen.merge_cells('A1:D1')
+    ws_resumen['A1'].font = Font(bold=True, size=14, color="FFFFFF")
+    ws_resumen['A1'].fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
+    ws_resumen['A1'].alignment = Alignment(horizontal='center', vertical='center')
+
+    # Encabezados de tabla (ahora usamos "Registros" en lugar de "IDs")
+    headers = ['Tipo de Documento', f'Presentes en {nombre_sire}', f'No presentes en {nombre_sire}', 'Total en PLE']
+    ws_resumen.append(headers)
+
+    # Obtener todos los tipos de documento del PLE (archivo 2)
+    # Reemplazar valores nulos o vacíos con 'DESCONOCIDO'
+    df_ple['TipoDoc_Norm'] = df_ple['TipoDoc_Norm'].fillna('DESCONOCIDO')
+    df_ple['TipoDoc_Norm'] = df_ple['TipoDoc_Norm'].replace('', 'DESCONOCIDO')
+    
+    tipos_ple = df_ple['TipoDoc_Norm'].unique()
+    # Ordenar: primero los numéricos, luego 'DESCONOCIDO' al final
+    tipos_numericos = sorted([t for t in tipos_ple if t != 'DESCONOCIDO' and t.isdigit()], key=lambda x: int(x))
+    tipos_ordenados = tipos_numericos + (['DESCONOCIDO'] if 'DESCONOCIDO' in tipos_ple else [])
+
+    # Conjuntos de IDs para comparación (esto sigue siendo necesario para saber qué está presente)
+    ids_sire = set(df_sire['ID_CONCILIACION'].dropna())
+
+    fila_actual = 3
+    total_presentes = 0
+    total_no_presentes = 0
+    total_registros_ple = 0
+
+    for tipo in tipos_ordenados:
+        # Filtrar registros del PLE para este tipo (TODOS los registros, incluyendo duplicados)
+        df_ple_tipo = df_ple[df_ple['TipoDoc_Norm'] == tipo]
+        total_registros = len(df_ple_tipo)
+        
+        # Dividir en presentes y no presentes (basado en ID_CONCILIACION)
+        mask_presente = df_ple_tipo['ID_CONCILIACION'].isin(ids_sire)
+        presentes_count = mask_presente.sum()
+        no_presentes_count = total_registros - presentes_count
+
+        total_presentes += presentes_count
+        total_no_presentes += no_presentes_count
+        total_registros_ple += total_registros
+
+        # Escribir fila
+        ws_resumen.cell(row=fila_actual, column=1, value=tipo)
+        ws_resumen.cell(row=fila_actual, column=2, value=presentes_count)
+        ws_resumen.cell(row=fila_actual, column=3, value=no_presentes_count)
+        ws_resumen.cell(row=fila_actual, column=4, value=total_registros)
+        fila_actual += 1
+
+    # Fila de TOTAL
+    ws_resumen.cell(row=fila_actual, column=1, value='TOTAL')
+    ws_resumen.cell(row=fila_actual, column=2, value=total_presentes)
+    ws_resumen.cell(row=fila_actual, column=3, value=total_no_presentes)
+    ws_resumen.cell(row=fila_actual, column=4, value=total_registros_ple)
+
+    # Aplicar formato a los encabezados (fila 2)
+    _aplicar_formato_encabezado(ws_resumen, row=2)
+    
+    # Negrita para la fila de total - CORREGIDO: usar índices numéricos
+    for col_idx in range(1, 5):  # columnas 1 a 4 (A, B, C, D)
+        ws_resumen.cell(row=fila_actual, column=col_idx).font = Font(bold=True)
+
+    # Ajustar ancho de columnas
+    for col in ['A', 'B', 'C', 'D']:
+        ws_resumen.column_dimensions[col].width = 25
+
+    # ---------- HOJAS POR TIPO DE DOCUMENTO ----------
+    for tipo in tipos_ordenados:
+        # Crear hoja con nombre "Tipo XX"
+        sheet_name = f"Tipo {tipo}"
+        if len(sheet_name) > 31:
+            sheet_name = sheet_name[:31]
+        ws_tipo = wb.create_sheet(sheet_name)
+
+        # Obtener TODOS los registros del PLE para este tipo
+        df_ple_tipo = df_ple[df_ple['TipoDoc_Norm'] == tipo]
+        mask_presente = df_ple_tipo['ID_CONCILIACION'].isin(ids_sire)
+
+        # --- Sección: Presentes en SIRE ---
+        fila_inicio = 1
+        ws_tipo.merge_cells(f'A{fila_inicio}:E{fila_inicio}')
+        celda_titulo = ws_tipo.cell(row=fila_inicio, column=1, value=f'✅ PRESENTES EN {nombre_sire} (Total: {mask_presente.sum()})')
+        celda_titulo.font = Font(bold=True, size=12, color="FFFFFF")
+        celda_titulo.fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
+        celda_titulo.alignment = Alignment(horizontal='center', vertical='center')
+        fila_inicio += 1
+
+        df_presentes = df_ple_tipo[mask_presente].copy()
+        if not df_presentes.empty:
+            cols_orden = ['ID_CONCILIACION', 'Serie', 'Numero', 'Hoja_Origen'] + \
+                         [c for c in df_presentes.columns if c not in ['ID_CONCILIACION', 'Serie', 'Numero', 'Hoja_Origen']]
+            df_presentes = df_presentes[cols_orden]
+            _escribir_dataframe_con_formato(ws_tipo, df_presentes, start_row=fila_inicio)
+            fila_inicio += len(df_presentes) + 2
+        else:
+            ws_tipo.cell(row=fila_inicio, column=1, value='No hay registros presentes en SIRE para este tipo.')
+            fila_inicio += 2
+
+        # --- Sección: No presentes en SIRE ---
+        ws_tipo.merge_cells(f'A{fila_inicio}:E{fila_inicio}')
+        celda_titulo = ws_tipo.cell(row=fila_inicio, column=1, value=f'❌ NO PRESENTES EN {nombre_sire} (Total: {(~mask_presente).sum()})')
+        celda_titulo.font = Font(bold=True, size=12, color="FFFFFF")
+        celda_titulo.fill = PatternFill(start_color="EF4444", end_color="EF4444", fill_type="solid")
+        celda_titulo.alignment = Alignment(horizontal='center', vertical='center')
+        fila_inicio += 1
+
+        df_no_presentes = df_ple_tipo[~mask_presente].copy()
+        if not df_no_presentes.empty:
+            cols_orden = ['ID_CONCILIACION', 'Serie', 'Numero', 'Hoja_Origen'] + \
+                         [c for c in df_no_presentes.columns if c not in ['ID_CONCILIACION', 'Serie', 'Numero', 'Hoja_Origen']]
+            df_no_presentes = df_no_presentes[cols_orden]
+            _escribir_dataframe_con_formato(ws_tipo, df_no_presentes, start_row=fila_inicio)
+        else:
+            ws_tipo.cell(row=fila_inicio, column=1, value='Todos los registros de este tipo están presentes en SIRE.')
+
+    # Guardar el archivo
+    wb.save(ruta_salida)
+    return ruta_salida

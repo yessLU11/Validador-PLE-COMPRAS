@@ -25,6 +25,7 @@ from duplicate_detector_internal import (
     obtener_todas_columnas_originales, generar_auditoria_duplicados
 )
 from conciliador import (
+    generar_reporte_presentes_no_presentes,
     leer_todas_hojas_conciliacion,
     conciliar_archivos,
     generar_reporte_conciliacion
@@ -60,7 +61,7 @@ st.markdown("""
         --danger: #EF4444;               /* Rojo (error)             */
         --bg-light: #F8FAFC;             /* Fondo claro              */
         --border: #E2E8F0;               /* Borde gris               */
-        --text: #334155;                 /* Texto gris               */
+        --text: ##E2E8F0;                 /* Texto gris               */
     }
     
     /* Sidebar - Panel izquierdo con degradado */
@@ -72,7 +73,7 @@ st.markdown("""
     .main-header {
         font-size: 2.2rem;
         font-weight: 700;
-        color: #F1F5F9;
+        color: #000000;
         margin-bottom: 0.5rem;
         text-align: center;
     }
@@ -182,6 +183,14 @@ st.markdown("""
         border-radius: 0.5rem;
         font-weight: 500;
         transition: all 0.2s ease;
+    }
+
+    /* Etiqueta de uploader en sidebar */
+    .uploader-label {
+        color: white;
+        font-size: 0.95rem;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
     }
     
     /* Tabs/pestañas */
@@ -526,7 +535,11 @@ with tab_duplicados_internos:
                     st.code(texto_auditoria, language="text")
 
 # ============================================================================
-# PESTAÑA: CONCILIACIÓN
+# PESTAÑA: CONCILIACIÓN + REPORTE SOLO PARA PLECOMPRAS_BN
+# ============================================================================
+
+# ============================================================================
+# PESTAÑA 3: CONCILIACIÓN + BOTÓN PRESENTES VS NO PRESENTES (CON SESSION_STATE)
 # ============================================================================
 with tab_conciliacion:
     st.markdown("## 🔁 Conciliación de PLE Compras")
@@ -540,61 +553,132 @@ with tab_conciliacion:
         archivo2 = st.file_uploader("📂 Archivo 2 (comparar)", type=["xlsx"], key="conc2")
         fila2 = st.number_input("Fila de inicio (Archivo 2)", min_value=1, value=1, step=1, key="fila2")
 
+    # Inicializar variables en session_state si no existen
+    if "df_conc1" not in st.session_state:
+        st.session_state.df_conc1 = None
+        st.session_state.df_conc2 = None
+        st.session_state.nombre_conc1 = None
+        st.session_state.nombre_conc2 = None
+        st.session_state.fila_conc1 = 1
+        st.session_state.fila_conc2 = 1
+
+    # Si el usuario cambia algún archivo o fila, reseteamos los datos guardados
     if archivo1 and archivo2:
-        if st.button("🔍 Conciliar", type="primary"):
-            with st.spinner("Procesando archivos..."):
-                try:
-                    path1 = f"uploads/conc_{archivo1.name}"
-                    path2 = f"uploads/conc_{archivo2.name}"
-                    with open(path1, "wb") as f:
-                        f.write(archivo1.getbuffer())
-                    with open(path2, "wb") as f:
-                        f.write(archivo2.getbuffer())
+        # Detectar cambio de archivo o fila
+        if (st.session_state.nombre_conc1 != archivo1.name or 
+            st.session_state.nombre_conc2 != archivo2.name or
+            st.session_state.fila_conc1 != fila1 or
+            st.session_state.fila_conc2 != fila2):
+            # Resetear DataFrames para forzar nueva lectura
+            st.session_state.df_conc1 = None
+            st.session_state.df_conc2 = None
+            st.session_state.nombre_conc1 = archivo1.name
+            st.session_state.nombre_conc2 = archivo2.name
+            st.session_state.fila_conc1 = fila1
+            st.session_state.fila_conc2 = fila2
 
-                    df1 = leer_todas_hojas_conciliacion(path1, fila_inicio=fila1)
-                    df2 = leer_todas_hojas_conciliacion(path2, fila_inicio=fila2)
+    # ---- BOTÓN 1: CONCILIACIÓN CLÁSICA ----
+    if st.button("🔍 Conciliar", use_container_width=True, type="primary"):
+        with st.spinner("Procesando archivos..."):
+            try:
+                # Guardar archivos temporalmente solo para lectura
+                path1 = f"uploads/conc_{archivo1.name}"
+                path2 = f"uploads/conc_{archivo2.name}"
+                with open(path1, "wb") as f:
+                    f.write(archivo1.getbuffer())
+                with open(path2, "wb") as f:
+                    f.write(archivo2.getbuffer())
 
-                    resumen, solo1, solo2 = conciliar_archivos(
-                        df1, df2,
-                        nombre1=archivo1.name,
-                        nombre2=archivo2.name
+                # Leer DataFrames
+                df1 = leer_todas_hojas_conciliacion(path1, fila_inicio=fila1)
+                df2 = leer_todas_hojas_conciliacion(path2, fila_inicio=fila2)
+
+                # Guardar en session_state para reutilizar
+                st.session_state.df_conc1 = df1
+                st.session_state.df_conc2 = df2
+                st.session_state.nombre_conc1 = archivo1.name
+                st.session_state.nombre_conc2 = archivo2.name
+
+                # Conciliar
+                resumen, solo1, solo2 = conciliar_archivos(
+                    df1, df2,
+                    nombre1=archivo1.name,
+                    nombre2=archivo2.name
+                )
+
+                st.success("✅ Conciliación completada")
+                st.markdown("### 📊 Resumen")
+                df_resumen = pd.DataFrame({
+                    "Concepto": ["Total registros (serie)", "IDs únicos", "Registros solo en este archivo", "Registros en común", "Diferencias totales"],
+                    archivo1.name: [resumen['total_registros_1'], resumen['ids_unicos_1'], resumen['solo_en_1'], resumen['comunes'], resumen['diferencias_totales']],
+                    archivo2.name: [resumen['total_registros_2'], resumen['ids_unicos_2'], resumen['solo_en_2'], resumen['comunes'], resumen['diferencias_totales']]
+                })
+                st.dataframe(df_resumen, use_container_width=True, hide_index=True)
+
+                nombre_salida = f"reportes/conciliacion_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+                generar_reporte_conciliacion(
+                    resumen, solo1, solo2,
+                    df1, df2,
+                    archivo1.name, archivo2.name,
+                    nombre_salida
+                )
+
+                with open(nombre_salida, "rb") as f:
+                    st.download_button(
+                        label="📥 Descargar Reporte Excel",
+                        data=f,
+                        file_name=os.path.basename(nombre_salida),
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True
                     )
 
-                    st.success("✅ Conciliación completada")
-                    st.markdown("### 📊 Resumen")
-                    df_resumen = pd.DataFrame({
-                        "Concepto": ["Total registros (serie)", "IDs únicos", "Registros solo en este archivo", "Registros en común", "Diferencias totales"],
-                        archivo1.name: [resumen['total_registros_1'], resumen['ids_unicos_1'], resumen['solo_en_1'], resumen['comunes'], resumen['diferencias_totales']],
-                        archivo2.name: [resumen['total_registros_2'], resumen['ids_unicos_2'], resumen['solo_en_2'], resumen['comunes'], resumen['diferencias_totales']]
-                    })
-                    st.dataframe(df_resumen, use_container_width=True, hide_index=True)
+                # Eliminar archivos temporales (ya no los necesitamos)
+                os.remove(path1)
+                os.remove(path2)
 
-                    nombre_salida = f"reportes/conciliacion_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-                    generar_reporte_conciliacion(
-                        resumen, solo1, solo2,
-                        df1, df2,  # <-- Pasar los DataFrames originales
-                        archivo1.name, archivo2.name,
-                        nombre_salida
+            except Exception as e:
+                st.error(f"❌ Error: {str(e)}")
+                import traceback
+                st.code(traceback.format_exc())
+
+    # ---- BOTÓN 2: REPORTE DE PRESENTES VS NO PRESENTES ----
+    st.markdown("---")
+    # Solo habilitar si ya se leyeron los datos
+    if st.session_state.df_conc1 is not None and st.session_state.df_conc2 is not None:
+        if st.button("📋 Generar Reporte de Presentes vs No Presentes", use_container_width=True):
+            with st.spinner("Generando reporte detallado por tipo de documento..."):
+                try:
+                    df1 = st.session_state.df_conc1
+                    df2 = st.session_state.df_conc2
+                    nombre1 = st.session_state.nombre_conc1
+                    nombre2 = st.session_state.nombre_conc2
+
+                    nombre_salida = f"reportes/presentes_no_presentes_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+                    generar_reporte_presentes_no_presentes(
+                        df1, df2,
+                        nombre_sire=nombre1,
+                        nombre_ple=nombre2,
+                        ruta_salida=nombre_salida
                     )
 
                     with open(nombre_salida, "rb") as f:
                         st.download_button(
-                            label="📥 Descargar Reporte Excel",
+                            label="📥 Descargar Reporte de Presentes vs No Presentes",
                             data=f,
                             file_name=os.path.basename(nombre_salida),
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                             use_container_width=True
                         )
-
-                    os.remove(path1)
-                    os.remove(path2)
-
+                    st.success("✅ Reporte generado correctamente")
                 except Exception as e:
                     st.error(f"❌ Error: {str(e)}")
                     import traceback
                     st.code(traceback.format_exc())
+    else:
+        st.info("ℹ️ Primero ejecuta la conciliación (botón '🔍 Conciliar') para habilitar este reporte.")
+
 # ============================================================================
-# PESTAÑA 3: GUÍA DE INSTRUCCIONES
+# PESTAÑA : GUÍA DE INSTRUCCIONES
 # ============================================================================
 # Proporciona un manual completo del uso de la aplicación con pasos
 # detallados, requisitos y advertencias. Utiliza expandibles para
@@ -878,8 +962,8 @@ with tab_info:
 # El sidebar contiene toda la funcionalidad de carga, validación y gestión.
 # Este es el panel principal donde el usuario interactúa con la aplicación.
 with st.sidebar:
-    st.markdown("# 📊 PLE COMPRAS")
-    st.markdown("### Validador de Duplicados")
+    st.markdown('# <span style="color:white">📊 PLE COMPRAS</span>', unsafe_allow_html=True)
+    st.markdown('### <span style="color:white">Validador de Duplicados</span>', unsafe_allow_html=True)
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
     
     # =====================================================================
@@ -919,7 +1003,8 @@ with st.sidebar:
     
     # Sección: Upload nuevo mes
     st.markdown('<p class="sidebar-title">📂 Subir nuevo mes</p>', unsafe_allow_html=True)
-    archivo = st.file_uploader("Selecciona archivo PLE_COMPRAS_MMYYYY.xlsx", type=["xlsx"], key="file_uploader", help="Formato: MMYYYY en el nombre")
+    st.markdown('<p class="uploader-label">Selecciona archivo PLE_COMPRAS_MMYYYY.xlsx</p>', unsafe_allow_html=True)
+    archivo = st.file_uploader("", type=["xlsx"], key="file_uploader", help="Formato: MMYYYY en el nombre")
     
     if archivo is not None:
         nombre = archivo.name
