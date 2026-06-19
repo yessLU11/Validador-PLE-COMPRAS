@@ -313,11 +313,11 @@ with tab_validar:
                 # 1. Mostrar resumen (agrupado por mes y tipo comprobante)
                 if st.session_state.resumen_df is not None and not st.session_state.resumen_df.empty:
                     st.markdown("### 📈 Resumen de duplicados")
-                    st.dataframe(st.session_state.resumen_df, width='stretch', hide_index=True)
+                    st.dataframe(st.session_state.resumen_df, use_container_width=True, hide_index=True)
                 
                 # 2. Mostrar detalle (primeros 20 registros)
                 st.markdown("### 📋 Detalle de duplicados")
-                st.dataframe(st.session_state.duplicados.head(20), width='stretch')
+                st.dataframe(st.session_state.duplicados.head(20), use_container_width=True)
                 if len(st.session_state.duplicados) > 20:
                     st.caption(f"Mostrando 20 de {len(st.session_state.duplicados)} duplicados. Descarga el Excel para ver todos.")
                 
@@ -330,7 +330,7 @@ with tab_validar:
                             data=f,
                             file_name=os.path.basename(st.session_state.reporte_path),
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            width='stretch',
+                            use_container_width=True,
                             type="primary"
                         )
             
@@ -340,7 +340,7 @@ with tab_validar:
             # Este sirve para agregar el mes al historial incluso si tiene duplicados, asumiendo que el usuario ya revisó el reporte y decidió proceder.
             if st.session_state.duplicados is not None:
                 st.markdown('<div class="card">', unsafe_allow_html=True)
-                if st.button("✅ CONFIRMAR Y AGREGAR AL HISTORIAL", width='stretch', type="primary"):
+                if st.button("✅ CONFIRMAR Y AGREGAR AL HISTORIAL", use_container_width=True , type="primary"):
                     try:
                         # Intentar agregar el mes a la BD
                         exito, mes_eliminado = agregar_mes(
@@ -417,7 +417,7 @@ with tab_duplicados_internos:
         st.markdown("---")
         st.markdown("### 🔍 Analizar duplicados")
         
-        if st.button("🔍 DETECTAR DUPLICADOS INTERNOS", width='stretch', type="primary"):
+        if st.button("🔍 DETECTAR DUPLICADOS INTERNOS", use_container_width=True, type="primary"):
             with st.spinner("🔄 Detectando duplicados..."):
                 try:
                     # Detectar duplicados
@@ -458,7 +458,7 @@ with tab_duplicados_internos:
                         {"Hoja": hoja, "Cantidad": cantidad}
                         for hoja, cantidad in auditoria['duplicados_por_hoja'].items()
                     ])
-                    st.dataframe(tabla_hojas, width='stretch', hide_index=True)
+                    st.dataframe(tabla_hojas, use_container_width=True, hide_index=True)
             
             # Mostrar duplicados (primeros 20)
             if not st.session_state.df_interno_duplicados.empty:
@@ -476,7 +476,7 @@ with tab_duplicados_internos:
                 
                 # Botón para generar reporte
                 st.markdown("---")
-                if st.button("📥 Generar Reporte Excel", width='stretch', type="primary"):
+                if st.button("📥 Generar Reporte Excel", use_container_width=True, type="primary"):
                     with st.spinner("⏳ Generando reporte Excel..."):
                         try:
                             # Generar nombre de salida
@@ -513,7 +513,7 @@ with tab_duplicados_internos:
                         data=f,
                         file_name=os.path.basename(st.session_state.reporte_interno_path),
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        width='stretch'
+                        use_container_width=True
                     )
             
             # Mostrar auditoría detallada (expandible)
@@ -945,7 +945,7 @@ with st.sidebar:
                 st.session_state.resumen_df = None
     
     if st.session_state.df_nuevo is not None:
-        if st.button("🔍 VALIDAR DUPLICADOS", width='stretch', type="primary"):
+        if st.button("🔍 VALIDAR DUPLICADOS", use_container_width=True, type="primary"):
             with st.spinner("Comparando con histórico..."):
                 df_historico = cargar_historico_completo()
                 df_historico = df_historico[df_historico["mes_archivo"] != st.session_state.mes_nuevo]
@@ -975,7 +975,8 @@ with st.sidebar:
     # Sección: Gestión
     st.markdown('<p class="sidebar-title">⚙️ Gestión</p>', unsafe_allow_html=True)
     
-    if st.button("🗑️ Eliminar último mes", width='stretch', help="Quita el mes más reciente agregado"):
+    if st.button("🗑️ Eliminar último mes", use_container_width=True, help="Quita el mes más reciente agregado"):
+
         ultimo = eliminar_ultimo_mes()
         if ultimo:
             st.success(f"Mes {ultimo} eliminado")
@@ -1007,7 +1008,7 @@ with st.sidebar:
                     os.remove(p)
             st.rerun()
     
-    if st.button("🔥 Eliminar toda BD", width='stretch'):
+    if st.button("🔥 Eliminar toda BD", use_container_width=True):
         st.warning("⚠️ IRREVERSIBLE - ¿Confirmas?")
         col1, col2 = st.columns(2)
         with col1:

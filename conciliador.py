@@ -17,17 +17,56 @@ import time
 # ------------------------------------------------------------
 # 1. LECTURA Y NORMALIZACIÓN DE UN ARCHIVO
 # ------------------------------------------------------------
+# ------------------------------------------------------------
+# 0. NORMALIZACIÓN DE TIPO DE DOCUMENTO (COLUMNA G)
+# ------------------------------------------------------------
+
+def normalizar_tipo_documento(valor):
+    """
+    Normaliza el tipo de documento de la columna G (índice 6).
+    - Convierte a string
+    - Elimina decimales (42.0 -> 42)
+    - Rellena con cero a la izquierda para tener 2 dígitos
+    - Maneja casos especiales (NaN, vacío, etc.)
+    
+    Ejemplos:
+        1   -> '01'
+        03  -> '03'
+        42.0 -> '42'
+        0.0 -> '00'
+        NaN -> '00'
+        ''  -> '00'
+    """
+    # Si es NaN o vacío, retornar '00'
+    if pd.isna(valor) or str(valor).strip() == '':
+        return '00'
+    
+    # Convertir a string y limpiar
+    valor_str = str(valor).strip()
+    
+    # Si es un número con decimales (ej: 42.0), convertir a entero
+    if '.' in valor_str:
+        try:
+            valor_str = str(int(float(valor_str)))
+        except:
+            pass
+    
+    # Intentar extraer solo dígitos (para casos como '03' o '3')
+    import re
+    digitos = re.search(r'(\d+)', valor_str)
+    if digitos:
+        valor_str = digitos.group(1)
+    else:
+        return '00'
+    
+    # Rellenar con cero a la izquierda hasta 2 dígitos
+    return valor_str.zfill(2)
 
 def leer_archivo_conciliacion(ruta_archivo, hoja=None, fila_inicio=1):
     """
     Lee un archivo Excel y extrae las columnas H (Serie) y J (Número) por posición fija.
-    Parámetros:
-        ruta_archivo: str
-        hoja: str o None (si None, toma la primera hoja)
-        fila_inicio: int (1‑based) -> fila donde comienzan los datos (ej. 5 si la fila 5 es la primera de datos)
-    Retorna DataFrame con columnas originales + Serie, Numero, ID_CONCILIACION, Hoja_Origen.
+    También extrae la columna G (Tipo de Documento) y la normaliza.
     """
-    # skiprows = fila_inicio - 1 (porque pandas usa 0‑based)
     skip_rows = fila_inicio - 1
 
     if hoja is None:
@@ -39,10 +78,18 @@ def leer_archivo_conciliacion(ruta_archivo, hoja=None, fila_inicio=1):
         raise ValueError("No se encontraron datos en el archivo u hoja especificada.")
 
     if df.shape[1] < 10:
-        raise ValueError("El archivo no tiene suficientes columnas (se necesitan H y J).")
+        raise ValueError("El archivo no tiene suficientes columnas (se necesitan G, H y J).")
 
     df_proc = df.copy()
+    
+    # --- Extraer y normalizar Tipo de Documento (columna G, índice 6) ---
+    tipo_raw = df_proc.iloc[:, 6] if df_proc.shape[1] > 6 else pd.Series(['00'] * len(df_proc))
+    df_proc['TipoDoc_Norm'] = tipo_raw.apply(normalizar_tipo_documento)
+    
+    # --- Extraer Serie (columna H, índice 7) ---
     serie_raw = df_proc.iloc[:, 7].astype(str).str.strip()
+    
+    # --- Extraer y normalizar Número (columna J, índice 9) ---
     numero_raw = df_proc.iloc[:, 9].astype(str).str.strip()
     numero_clean = numero_raw.str.replace(r'\.0$', '', regex=True)
     numero_fill = numero_clean.str.zfill(8)
@@ -111,62 +158,61 @@ def conciliar_archivos(df1, df2, nombre1="Archivo 1", nombre2="Archivo 2"):
 
 def contar_por_tipo_documento(df1, df2, nombre1, nombre2):
     """
-    Cuenta los registros por tipo de documento (columna G, índice 6)
-    en ambos DataFrames y genera un resumen comparativo.
-    
-    Retorna un DataFrame con:
-        - Tipo de documento (descripción)
-        - Total en archivo 1
-        - Total en archivo 2
-        - Diferencia (positiva)
-        - Libro electrónico (cuál tiene más)
+    Cuenta los registros por tipo de documento usando la columna normalizada 'TipoDoc_Norm'.
     """
-    # Mapeo de códigos a descripciones
+    # Mapeo de códigos a descripciones (todos los tipos posibles)
     TIPOS_DOC = {
-        '01': 'FACTURAS',
-        '03': 'BOLETAS',
-        '05': 'PASAJES AEREOS',
-        '12': 'TICKET MAQUINA REGISTRADORA',
-        '14': 'RECIBOS DE SERVICIO PUBLICO',
-        '15': 'TRANSPORTE TERRESTRE',
-        '16': 'TRANSPORTE DE CARGA',
-        '30': 'DOCUMENTOS AUTORIZADOS',
-        '46': 'NO DOMICILIADO'
+        '00': '00',
+        '01': '01',
+        '02': '02',
+        '03': '03',
+        '04': '04',
+        '05': '05',
+        '06': '06',
+        '07': '07',
+        '08': '08',
+        '09': '09',
+        '12': '12',
+        '14': '14',
+        '16': '16',
+        '30': '30',
+        '42': '42',
+        '46': '46',
+        '53': '53'
     }
     
-    # Extraer tipos de la columna G (índice 6) de cada DataFrame
-    # Asumimos que los DataFrames mantienen las columnas originales
-    # La columna G es la posición 6 (0-based)
+    # Usar la columna normalizada 'TipoDoc_Norm'
+    if 'TipoDoc_Norm' in df1.columns:
+        tipos1 = df1['TipoDoc_Norm']
+    else:
+        # Fallback: intentar extraer de columna G
+        tipos1 = df1.iloc[:, 6].apply(normalizar_tipo_documento) if df1.shape[1] > 6 else pd.Series(['00'] * len(df1))
     
-    def obtener_tipos(df):
-        """Extrae los tipos de la columna G (índice 6)"""
-        if df.shape[1] > 6:
-            tipos = df.iloc[:, 6].astype(str).str.strip()
-            # Reemplazar valores vacíos o nulos con 'DESCONOCIDO'
-            tipos = tipos.replace('', 'DESCONOCIDO')
-            tipos = tipos.fillna('DESCONOCIDO')
-            return tipos
-        else:
-            return pd.Series(['SIN_COLUMNA'] * len(df))
-    
-    tipos1 = obtener_tipos(df1)
-    tipos2 = obtener_tipos(df2)
+    if 'TipoDoc_Norm' in df2.columns:
+        tipos2 = df2['TipoDoc_Norm']
+    else:
+        tipos2 = df2.iloc[:, 6].apply(normalizar_tipo_documento) if df2.shape[1] > 6 else pd.Series(['00'] * len(df2))
     
     # Contar frecuencias
     conteo1 = tipos1.value_counts().to_dict()
     conteo2 = tipos2.value_counts().to_dict()
     
-    # Obtener todos los tipos únicos (de ambos archivos)
+    # Obtener todos los tipos únicos
     todos_tipos = set(conteo1.keys()) | set(conteo2.keys())
     
-    # Construir DataFrame de resultados
+    # Ordenar tipos numéricamente
+    def orden_tipo(t):
+        try:
+            return int(t)
+        except:
+            return 999
+    
     resultados = []
-    for tipo in sorted(todos_tipos):
+    for tipo in sorted(todos_tipos, key=orden_tipo):
         total1 = conteo1.get(tipo, 0)
         total2 = conteo2.get(tipo, 0)
         diferencia = abs(total1 - total2)
         
-        # Determinar qué archivo tiene más
         if total1 > total2:
             libro_electronico = nombre1
         elif total2 > total1:
@@ -174,42 +220,29 @@ def contar_por_tipo_documento(df1, df2, nombre1, nombre2):
         else:
             libro_electronico = 'IGUALES'
         
-        # Obtener descripción del tipo
-        descripcion = TIPOS_DOC.get(tipo, tipo)
+        descripcion = TIPOS_DOC.get(tipo, f' {tipo}')
         
         resultados.append({
-            'Tipo de Documento': descripcion,
+            'Tipo de Documento': f'{tipo} ',
             f'Total {nombre1}': total1,
             f'Total {nombre2}': total2,
             'Diferencia': diferencia,
             'Libro Electrónico': libro_electronico
         })
     
-    # Ordenar por código de tipo (numéricamente)
-    # Para orden correcto: 01, 03, 05, 12, 14, 15, 16, 30, 46
-    orden_tipos = ['01', '03', '05', '12', '14', '15', '16', '30', '46', 'DESCONOCIDO', 'SIN_COLUMNA']
-    df_resultado = pd.DataFrame(resultados)
-    
-    # Asignar orden
-    df_resultado['_orden'] = df_resultado['Tipo de Documento'].apply(
-        lambda x: orden_tipos.index(x) if x in orden_tipos else 999
-    )
-    df_resultado = df_resultado.sort_values('_orden').drop('_orden', axis=1)
-    
     # Agregar fila de TOTAL
+    total1 = sum(r[f'Total {nombre1}'] for r in resultados)
+    total2 = sum(r[f'Total {nombre2}'] for r in resultados)
     total_fila = {
         'Tipo de Documento': 'TOTAL GENERAL',
-        f'Total {nombre1}': sum(r[f'Total {nombre1}'] for r in resultados),
-        f'Total {nombre2}': sum(r[f'Total {nombre2}'] for r in resultados),
-        'Diferencia': abs(sum(r[f'Total {nombre1}'] for r in resultados) - 
-                          sum(r[f'Total {nombre2}'] for r in resultados)),
-        'Libro Electrónico': nombre1 if sum(r[f'Total {nombre1}'] for r in resultados) > 
-                                   sum(r[f'Total {nombre2}'] for r in resultados) else nombre2
+        f'Total {nombre1}': total1,
+        f'Total {nombre2}': total2,
+        'Diferencia': abs(total1 - total2),
+        'Libro Electrónico': nombre1 if total1 > total2 else (nombre2 if total2 > total1 else 'IGUALES')
     }
-    df_resultado = pd.concat([df_resultado, pd.DataFrame([total_fila])], ignore_index=True)
+    resultados.append(total_fila)
     
-    return df_resultado
-
+    return pd.DataFrame(resultados)
 # ------------------------------------------------------------
 # 3. GENERACIÓN DE REPORTE EXCEL
 # ------------------------------------------------------------
