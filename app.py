@@ -26,6 +26,7 @@ from duplicate_detector_internal import (
 )
 from conciliador import (
     generar_reporte_presentes_no_presentes,
+    generar_reporte_presentes_no_presentes_sire_sunat,  # <-- NUEVA
     leer_todas_hojas_conciliacion,
     conciliar_archivos,
     generar_reporte_conciliacion
@@ -541,16 +542,20 @@ with tab_duplicados_internos:
 # ============================================================================
 # PESTAÑA 3: CONCILIACIÓN + BOTÓN PRESENTES VS NO PRESENTES (CON SESSION_STATE)
 # ============================================================================
+
+# ============================================================================
+# PESTAÑA 3: CONCILIACIÓN + BOTONES DE REPORTES
+# ============================================================================
 with tab_conciliacion:
     st.markdown("## 🔁 Conciliación de PLE Compras")
     st.markdown("Sube dos archivos Excel y especifica la fila donde comienzan los datos (1‑based).")
 
     col1, col2 = st.columns(2)
     with col1:
-        archivo1 = st.file_uploader("📂 Archivo 1 (base)", type=["xlsx"], key="conc1")
+        archivo1 = st.file_uploader("📂 Archivo 1 (SIRE_SUNAT - Base)", type=["xlsx"], key="conc1")
         fila1 = st.number_input("Fila de inicio (Archivo 1)", min_value=1, value=1, step=1, key="fila1")
     with col2:
-        archivo2 = st.file_uploader("📂 Archivo 2 (comparar)", type=["xlsx"], key="conc2")
+        archivo2 = st.file_uploader("📂 Archivo 2 (SIRE_BN - Comparar)", type=["xlsx"], key="conc2")
         fila2 = st.number_input("Fila de inicio (Archivo 2)", min_value=1, value=1, step=1, key="fila2")
 
     # Inicializar variables en session_state si no existen
@@ -564,12 +569,10 @@ with tab_conciliacion:
 
     # Si el usuario cambia algún archivo o fila, reseteamos los datos guardados
     if archivo1 and archivo2:
-        # Detectar cambio de archivo o fila
         if (st.session_state.nombre_conc1 != archivo1.name or 
             st.session_state.nombre_conc2 != archivo2.name or
             st.session_state.fila_conc1 != fila1 or
             st.session_state.fila_conc2 != fila2):
-            # Resetear DataFrames para forzar nueva lectura
             st.session_state.df_conc1 = None
             st.session_state.df_conc2 = None
             st.session_state.nombre_conc1 = archivo1.name
@@ -577,11 +580,12 @@ with tab_conciliacion:
             st.session_state.fila_conc1 = fila1
             st.session_state.fila_conc2 = fila2
 
-    # ---- BOTÓN 1: CONCILIACIÓN CLÁSICA ----
-    if st.button("🔍 Conciliar", use_container_width=True, type="primary"):
+    # ---------------------------------------------------------------------
+    # BOTÓN 1: CONCILIACIÓN GENERAL
+    # ---------------------------------------------------------------------
+    if st.button("📊 Conciliación General", use_container_width=True, type="primary"):
         with st.spinner("Procesando archivos..."):
             try:
-                # Guardar archivos temporalmente solo para lectura
                 path1 = f"uploads/conc_{archivo1.name}"
                 path2 = f"uploads/conc_{archivo2.name}"
                 with open(path1, "wb") as f:
@@ -589,17 +593,14 @@ with tab_conciliacion:
                 with open(path2, "wb") as f:
                     f.write(archivo2.getbuffer())
 
-                # Leer DataFrames
                 df1 = leer_todas_hojas_conciliacion(path1, fila_inicio=fila1)
                 df2 = leer_todas_hojas_conciliacion(path2, fila_inicio=fila2)
 
-                # Guardar en session_state para reutilizar
                 st.session_state.df_conc1 = df1
                 st.session_state.df_conc2 = df2
                 st.session_state.nombre_conc1 = archivo1.name
                 st.session_state.nombre_conc2 = archivo2.name
 
-                # Conciliar
                 resumen, solo1, solo2 = conciliar_archivos(
                     df1, df2,
                     nombre1=archivo1.name,
@@ -615,7 +616,7 @@ with tab_conciliacion:
                 })
                 st.dataframe(df_resumen, use_container_width=True, hide_index=True)
 
-                nombre_salida = f"reportes/conciliacion_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+                nombre_salida = f"reportes/conciliacion_general_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
                 generar_reporte_conciliacion(
                     resumen, solo1, solo2,
                     df1, df2,
@@ -625,14 +626,13 @@ with tab_conciliacion:
 
                 with open(nombre_salida, "rb") as f:
                     st.download_button(
-                        label="📥 Descargar Reporte Excel",
+                        label="📥 Descargar Reporte de Conciliación General",
                         data=f,
                         file_name=os.path.basename(nombre_salida),
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         use_container_width=True
                     )
 
-                # Eliminar archivos temporales (ya no los necesitamos)
                 os.remove(path1)
                 os.remove(path2)
 
@@ -641,41 +641,104 @@ with tab_conciliacion:
                 import traceback
                 st.code(traceback.format_exc())
 
-    # ---- BOTÓN 2: REPORTE DE PRESENTES VS NO PRESENTES ----
     st.markdown("---")
+    st.markdown("### 📋 Reportes de Presencia")
+
     # Solo habilitar si ya se leyeron los datos
     if st.session_state.df_conc1 is not None and st.session_state.df_conc2 is not None:
-        if st.button("📋 Generar Reporte de Presentes vs No Presentes", use_container_width=True):
-            with st.spinner("Generando reporte detallado por tipo de documento..."):
-                try:
-                    df1 = st.session_state.df_conc1
-                    df2 = st.session_state.df_conc2
-                    nombre1 = st.session_state.nombre_conc1
-                    nombre2 = st.session_state.nombre_conc2
+        
+        # -----------------------------------------------------------------
+        # BOTÓN 2: Reporte PLE (SIRE_BN) vs SIRE_SUNAT
+        # -----------------------------------------------------------------
+        with st.container():
+            col_btn1, col_desc1 = st.columns([1, 3])
+            with col_btn1:
+                if st.button("📋 Reporte SIRE_BN", use_container_width=True):
+                    with st.spinner("Generando reporte..."):
+                        try:
+                            df1 = st.session_state.df_conc1  # SIRE_SUNAT
+                            df2 = st.session_state.df_conc2  # SIRE_BN
+                            nombre1 = st.session_state.nombre_conc1
+                            nombre2 = st.session_state.nombre_conc2
 
-                    nombre_salida = f"reportes/presentes_no_presentes_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-                    generar_reporte_presentes_no_presentes(
-                        df1, df2,
-                        nombre_sire=nombre1,
-                        nombre_ple=nombre2,
-                        ruta_salida=nombre_salida
-                    )
+                            nombre_salida = f"reporte_SIRE_BN_{datetime.now().strftime('%Y%m%d')}.xlsx"
+                            generar_reporte_presentes_no_presentes(
+                                df_sire_sunat=df1,
+                                df_sire_bn=df2,
+                                nombre_sire_sunat=nombre1,
+                                nombre_sire_bn=nombre2,
+                                ruta_salida=nombre_salida
+                            )
 
-                    with open(nombre_salida, "rb") as f:
-                        st.download_button(
-                            label="📥 Descargar Reporte de Presentes vs No Presentes",
-                            data=f,
-                            file_name=os.path.basename(nombre_salida),
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            use_container_width=True
-                        )
-                    st.success("✅ Reporte generado correctamente")
-                except Exception as e:
-                    st.error(f"❌ Error: {str(e)}")
-                    import traceback
-                    st.code(traceback.format_exc())
+                            with open(nombre_salida, "rb") as f:
+                                st.download_button(
+                                    label="📥 Descargar Reporte",
+                                    data=f,
+                                    file_name=os.path.basename(nombre_salida),
+                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                    use_container_width=True
+                                )
+                            st.success("✅ Reporte SIRE_BN generado correctamente")
+                        except Exception as e:
+                            st.error(f"❌ Error: {str(e)}")
+                            import traceback
+                            st.code(traceback.format_exc())
+            with col_desc1:
+                st.markdown("""
+                **📋 Reporte SIRE_BN**  
+                Muestra qué registros del **SIRE_BN ** están **presentes** o **no presentes** en **SIRE_SUNAT**.  
+                *Útil para identificar qué comprobantes declarados en SIRE_BN no están registrados en SIRE_SUNAT.*
+                """)
+
+        st.markdown("---")
+        
+        # -----------------------------------------------------------------
+        # BOTÓN 3: Reporte SIRE_SUNAT vs PLE (SIRE_BN)
+        # -----------------------------------------------------------------
+        with st.container():
+            col_btn2, col_desc2 = st.columns([1, 3])
+            with col_btn2:
+                if st.button("📋 Reporte SIRE_SUNAT", use_container_width=True):
+                    with st.spinner("Generando reporte..."):
+                        try:
+                            # Importar la nueva función desde conciliador.py
+                            from conciliador import generar_reporte_presentes_no_presentes_sire_sunat
+                            
+                            df1 = st.session_state.df_conc1  # SIRE_SUNAT
+                            df2 = st.session_state.df_conc2  # SIRE_BN
+                            nombre1 = st.session_state.nombre_conc1
+                            nombre2 = st.session_state.nombre_conc2
+
+                            nombre_salida = f"reportes_SIRE_SUNAT_{datetime.now().strftime('%Y%m%d')}.xlsx"
+                            generar_reporte_presentes_no_presentes_sire_sunat(
+                                df_sire_sunat=df1,
+                                df_sire_bn=df2,
+                                nombre_sire_sunat=nombre1,
+                                nombre_sire_bn=nombre2,
+                                ruta_salida=nombre_salida
+                            )
+
+                            with open(nombre_salida, "rb") as f:
+                                st.download_button(
+                                    label="📥 Descargar Reporte",
+                                    data=f,
+                                    file_name=os.path.basename(nombre_salida),
+                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                    use_container_width=True
+                                )
+                            st.success("✅ Reporte SIRE_SUNAT generado correctamente")
+                        except Exception as e:
+                            st.error(f"❌ Error: {str(e)}")
+                            import traceback
+                            st.code(traceback.format_exc())
+            with col_desc2:
+                st.markdown("""
+                **📋 Reporte SIRE_SUNAT**  
+                Muestra qué registros del **SIRE_SUNAT** están **presentes** o **no presentes** en **SIRE_BN**.  
+                *Útil para identificar qué comprobantes registrados en SIRE_SUNAT NO han sido declarados en el SIRE_BN.*
+                """)
     else:
-        st.info("ℹ️ Primero ejecuta la conciliación (botón '🔍 Conciliar') para habilitar este reporte.")
+        st.info("ℹ️ Primero ejecuta la **Conciliación General** para habilitar los reportes individuales SIRE_SUNAT y SIRE_BN.")
 
 # ============================================================================
 # PESTAÑA : GUÍA DE INSTRUCCIONES
@@ -1003,9 +1066,15 @@ with st.sidebar:
     
     # Sección: Upload nuevo mes
     st.markdown('<p class="sidebar-title">📂 Subir nuevo mes</p>', unsafe_allow_html=True)
-    st.markdown('<p class="uploader-label">Selecciona archivo PLE_COMPRAS_MMYYYY.xlsx</p>', unsafe_allow_html=True)
-    archivo = st.file_uploader("", type=["xlsx"], key="file_uploader", help="Formato: MMYYYY en el nombre")
-    
+    archivo = st.file_uploader(
+        "Selecciona archivo PLE_COMPRAS_MMYYYY.xlsx",
+        type=["xlsx"],
+        key="file_uploader",
+        help="Formato: MMYYYY en el nombre (ej: 032025)",
+        label_visibility="hidden"
+    )
+
+
     if archivo is not None:
         nombre = archivo.name
         match = re.search(r"(\d{6})", nombre)
