@@ -385,19 +385,14 @@ def generar_reporte_presentes_no_presentes(df_sire_sunat, df_sire_bn, nombre_sir
     Genera un reporte Excel que muestra, por tipo de documento:
     - Cuántos registros del SIRE_BN (archivo 2) están presentes en SIRE_SUNAT (archivo 1)
     - Cuántos NO están presentes en SIRE_SUNAT
+    - Porcentajes de presentes y no presentes (suma = 100%)
     - Nombre del tipo de documento
-    - Porcentaje de coincidencia con barra de datos
+    - Barra de datos en todas las columnas de porcentaje
     - Detalle de TODAS las filas para cada tipo (incluyendo duplicados)
+    - Descripción explicativa debajo de la tabla
     
     Título: RESUMEN: REGISTROS DEL SIRE_BN
-    Columnas: Tipo de Documento | Nombre de Tipo de Doc | Presentes en SIRE_SUNAT | No presentes en SIRE_SUNAT | Total en SIRE_BN | Coincidencia(%)
-    
-    Parámetros:
-        df_sire_sunat: DataFrame de SIRE_SUNAT (archivo 1)
-        df_sire_bn: DataFrame de SIRE_BN (archivo 2)
-        nombre_sire_sunat: nombre del archivo SIRE_SUNAT
-        nombre_sire_bn: nombre del archivo SIRE_BN
-        ruta_salida: ruta donde guardar el Excel
+    Columnas: Tipo de Documento | Nombre de Tipo de Doc | Presentes en SIRE_SUNAT | Coincidencia(%) | No presentes en SIRE_SUNAT | Coincidencia(%) | Total en SIRE_BN | Coincidencia(%)
     """
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -438,13 +433,24 @@ def generar_reporte_presentes_no_presentes(df_sire_sunat, df_sire_bn, nombre_sir
     # ---------- HOJA 1: Resumen ----------
     ws_resumen = wb.create_sheet("Resumen")
 
+    # TÍTULO
     ws_resumen['A1'] = 'RESUMEN: REGISTROS DEL SIRE_BN'
-    ws_resumen.merge_cells('A1:F1')
+    ws_resumen.merge_cells('A1:H1')
     ws_resumen['A1'].font = Font(bold=True, size=14, color="FFFFFF")
     ws_resumen['A1'].fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
     ws_resumen['A1'].alignment = Alignment(horizontal='center', vertical='center')
 
-    headers = ['Tipo de Documento', 'Nombre de Tipo de Doc', 'Presentes en SIRE_SUNAT', 'No presentes en SIRE_SUNAT', 'Total en SIRE_BN', 'Coincidencia(%)']
+    # ENCABEZADOS CON NUEVAS COLUMNAS
+    headers = [
+        'Tipo de Documento', 
+        'Nombre de Tipo de Doc', 
+        'Presentes en SIRE_SUNAT', 
+        'Coincidencia(%)',
+        'No presentes en SIRE_SUNAT',
+        'Coincidencia(%)',
+        'Total en SIRE_BN',
+        'Coincidencia(%)'
+    ]
     ws_resumen.append(headers)
 
     df_sire_bn['TipoDoc_Norm'] = df_sire_bn['TipoDoc_Norm'].fillna('DESCONOCIDO')
@@ -469,8 +475,10 @@ def generar_reporte_presentes_no_presentes(df_sire_sunat, df_sire_bn, nombre_sir
         presentes_count = mask_presente.sum()
         no_presentes_count = total_registros - presentes_count
         
-        # Calcular porcentaje CORRECTAMENTE
-        porcentaje = (presentes_count / total_registros * 100) if total_registros > 0 else 0
+        # Calcular porcentajes (como decimales)
+        pct_presentes = (presentes_count / total_registros) if total_registros > 0 else 0
+        pct_no_presentes = (no_presentes_count / total_registros) if total_registros > 0 else 0
+        pct_total = 1.0  # Siempre 100%
 
         total_presentes += presentes_count
         total_no_presentes += no_presentes_count
@@ -481,31 +489,39 @@ def generar_reporte_presentes_no_presentes(df_sire_sunat, df_sire_bn, nombre_sir
         ws_resumen.cell(row=fila_actual, column=1, value=tipo)
         ws_resumen.cell(row=fila_actual, column=2, value=nombre_tipo)
         ws_resumen.cell(row=fila_actual, column=3, value=int(presentes_count))
-        ws_resumen.cell(row=fila_actual, column=4, value=int(no_presentes_count))
-        ws_resumen.cell(row=fila_actual, column=5, value=int(total_registros))
-        ws_resumen.cell(row=fila_actual, column=6, value=porcentaje / 100)  # Guardar como decimal para formato %
+        ws_resumen.cell(row=fila_actual, column=4, value=pct_presentes)
+        ws_resumen.cell(row=fila_actual, column=5, value=int(no_presentes_count))
+        ws_resumen.cell(row=fila_actual, column=6, value=pct_no_presentes)
+        ws_resumen.cell(row=fila_actual, column=7, value=int(total_registros))
+        ws_resumen.cell(row=fila_actual, column=8, value=pct_total)
         fila_actual += 1
 
     # Fila de TOTAL
-    porcentaje_total = (total_presentes / total_registros_sire_bn * 100) if total_registros_sire_bn > 0 else 0
+    pct_total_presentes = (total_presentes / total_registros_sire_bn) if total_registros_sire_bn > 0 else 0
+    pct_total_no_presentes = (total_no_presentes / total_registros_sire_bn) if total_registros_sire_bn > 0 else 0
+    
     ws_resumen.cell(row=fila_actual, column=1, value='TOTAL')
     ws_resumen.cell(row=fila_actual, column=2, value='')
     ws_resumen.cell(row=fila_actual, column=3, value=int(total_presentes))
-    ws_resumen.cell(row=fila_actual, column=4, value=int(total_no_presentes))
-    ws_resumen.cell(row=fila_actual, column=5, value=int(total_registros_sire_bn))
-    ws_resumen.cell(row=fila_actual, column=6, value=porcentaje_total / 100)
+    ws_resumen.cell(row=fila_actual, column=4, value=pct_total_presentes)
+    ws_resumen.cell(row=fila_actual, column=5, value=int(total_no_presentes))
+    ws_resumen.cell(row=fila_actual, column=6, value=pct_total_no_presentes)
+    ws_resumen.cell(row=fila_actual, column=7, value=int(total_registros_sire_bn))
+    ws_resumen.cell(row=fila_actual, column=8, value=1.0)
 
     _aplicar_formato_encabezado(ws_resumen, row=2)
     
-    for col_idx in range(1, 7):
+    # Negrita para la fila de total
+    for col_idx in range(1, 9):
         ws_resumen.cell(row=fila_actual, column=col_idx).font = Font(bold=True)
 
-    # Formato de porcentaje para la columna F (índice 6)
+    # Formato de porcentaje para columnas D, F, H (índices 4, 6, 8)
     for row in range(3, fila_actual + 1):
-        cell = ws_resumen.cell(row=row, column=6)
-        cell.number_format = '0.00%'
+        for col_idx in [4, 6, 8]:
+            cell = ws_resumen.cell(row=row, column=col_idx)
+            cell.number_format = '0.00%'
 
-    # Barra de datos
+    # ---- BARRAS DE DATOS para columnas de porcentaje (D, F, H) ----
     data_bar_rule = DataBarRule(
         start_type='min',
         end_type='max',
@@ -515,13 +531,58 @@ def generar_reporte_presentes_no_presentes(df_sire_sunat, df_sire_bn, nombre_sir
         maxLength=None
     )
     if fila_actual > 3:
+        # Columna D (Presentes %)
+        ws_resumen.conditional_formatting.add(
+            f'D3:D{fila_actual-1}',
+            data_bar_rule
+        )
+        # Columna F (No presentes %)
         ws_resumen.conditional_formatting.add(
             f'F3:F{fila_actual-1}',
             data_bar_rule
         )
+        # Columna H (Total %)
+        ws_resumen.conditional_formatting.add(
+            f'H3:H{fila_actual-1}',
+            data_bar_rule
+        )
 
-    for col in ['A', 'B', 'C', 'D', 'E', 'F']:
-        ws_resumen.column_dimensions[col].width = 25
+    # Ajustar ancho de columnas
+    ws_resumen.column_dimensions['A'].width = 20
+    ws_resumen.column_dimensions['B'].width = 30
+    ws_resumen.column_dimensions['C'].width = 22
+    ws_resumen.column_dimensions['D'].width = 18
+    ws_resumen.column_dimensions['E'].width = 25
+    ws_resumen.column_dimensions['F'].width = 18
+    ws_resumen.column_dimensions['G'].width = 18
+    ws_resumen.column_dimensions['H'].width = 18
+
+    # ---- DESCRIPCIÓN EXPLICATIVA (3-4 líneas debajo de la tabla) ----
+    
+    fila_descripcion = fila_actual + 3
+
+    descripcion = [
+        "📌 DESCRIPCIÓN DEL REPORTE:",
+        "Este reporte compara los comprobantes registrados en SIRE_BN y SIRE_SUNAT.",
+        "Por ejemplo, si hay 2,714 facturas (Tipo 01) en SIRE_BN, y 1,795 están en SIRE_SUNAT,",
+        "significa que el 66.14% de las facturas están conciliadas, pero el 33.86% (919 facturas)",
+        "aún no están registradas en SIRE_SUNAT y requieren revisión.",
+        "• Coincidencia (%): Porcentaje de registros que están en ambos sistemas.",
+        "• No coincidencia (%): Porcentaje de registros que faltan en uno de los sistemas.",
+        "✅ El objetivo es que la coincidencia sea del 100%. Si hay diferencias, deben revisarse."
+    ]
+    
+    for i, linea in enumerate(descripcion):
+        ws_resumen.cell(row=fila_descripcion + i, column=1, value=linea)
+        # Dar formato a la primera línea (negrita y más grande)
+        if i == 0:
+            ws_resumen.cell(row=fila_descripcion + i, column=1).font = Font(bold=True, size=12)
+        # Alinear texto
+        ws_resumen.cell(row=fila_descripcion + i, column=1).alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
+    
+    # Ajustar altura de filas para la descripción
+    for i in range(len(descripcion)):
+        ws_resumen.row_dimensions[fila_descripcion + i].height = 22
 
     # ---------- HOJAS POR TIPO DE DOCUMENTO ----------
     for tipo in tipos_ordenados:
@@ -580,12 +641,14 @@ def generar_reporte_presentes_no_presentes_sire_sunat(df_sire_sunat, df_sire_bn,
     Genera un reporte Excel que muestra, por tipo de documento:
     - Cuántos registros del SIRE_SUNAT (archivo 1) están presentes en SIRE_BN (archivo 2)
     - Cuántos NO están presentes en SIRE_BN
+    - Porcentajes de presentes y no presentes (suma = 100%)
     - Nombre del tipo de documento
-    - Porcentaje de coincidencia con barra de datos
+    - Barra de datos en todas las columnas de porcentaje
     - Detalle de TODAS las filas para cada tipo (incluyendo duplicados)
+    - Descripción explicativa debajo de la tabla
     
     Título: RESUMEN: REGISTROS DE SIRE_SUNAT
-    Columnas: Tipo de Documento | Nombre de Tipo de Doc | Presentes en SIRE_BN | No presentes en SIRE_BN | Total en SIRE_SUNAT | Coincidencia(%)
+    Columnas: Tipo de Documento | Nombre de Tipo de Doc | Presentes en SIRE_BN | Coincidencia(%) | No presentes en SIRE_BN | Coincidencia(%) | Total en SIRE_SUNAT | Coincidencia(%)
     """
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -626,15 +689,24 @@ def generar_reporte_presentes_no_presentes_sire_sunat(df_sire_sunat, df_sire_bn,
     # ---------- HOJA 1: Resumen ----------
     ws_resumen = wb.create_sheet("Resumen")
 
-    # TÍTULO: REGISTROS DE SIRE_SUNAT
+    # TÍTULO
     ws_resumen['A1'] = 'RESUMEN: REGISTROS DE SIRE_SUNAT'
-    ws_resumen.merge_cells('A1:F1')
+    ws_resumen.merge_cells('A1:H1')
     ws_resumen['A1'].font = Font(bold=True, size=14, color="FFFFFF")
     ws_resumen['A1'].fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
     ws_resumen['A1'].alignment = Alignment(horizontal='center', vertical='center')
 
-    # ENCABEZADOS CORREGIDOS: "Presentes en SIRE_BN" y "No presentes en SIRE_BN"
-    headers = ['Tipo de Documento', 'Nombre de Tipo de Doc', 'Presentes en SIRE_BN', 'No presentes en SIRE_BN', 'Total en SIRE_SUNAT', 'Coincidencia(%)']
+    # ENCABEZADOS CON NUEVAS COLUMNAS
+    headers = [
+        'Tipo de Documento', 
+        'Nombre de Tipo de Doc', 
+        'Presentes en SIRE_BN', 
+        'Coincidencia(%)',
+        'No presentes en SIRE_BN',
+        'Coincidencia(%)',
+        'Total en SIRE_SUNAT',
+        'Coincidencia(%)'
+    ]
     ws_resumen.append(headers)
 
     df_sire_sunat['TipoDoc_Norm'] = df_sire_sunat['TipoDoc_Norm'].fillna('DESCONOCIDO')
@@ -659,10 +731,10 @@ def generar_reporte_presentes_no_presentes_sire_sunat(df_sire_sunat, df_sire_bn,
         presentes_count = mask_presente.sum()
         no_presentes_count = total_registros - presentes_count
         
-        # ================================================================
-        # CORRECCIÓN: Guardar como decimal (0.3984) no como porcentaje (39.84)
-        # ================================================================
-        porcentaje = (presentes_count / total_registros) if total_registros > 0 else 0
+        # Calcular porcentajes (como decimales)
+        pct_presentes = (presentes_count / total_registros) if total_registros > 0 else 0
+        pct_no_presentes = (no_presentes_count / total_registros) if total_registros > 0 else 0
+        pct_total = 1.0  # Siempre 100%
 
         total_presentes += presentes_count
         total_no_presentes += no_presentes_count
@@ -673,31 +745,39 @@ def generar_reporte_presentes_no_presentes_sire_sunat(df_sire_sunat, df_sire_bn,
         ws_resumen.cell(row=fila_actual, column=1, value=tipo)
         ws_resumen.cell(row=fila_actual, column=2, value=nombre_tipo)
         ws_resumen.cell(row=fila_actual, column=3, value=int(presentes_count))
-        ws_resumen.cell(row=fila_actual, column=4, value=int(no_presentes_count))
-        ws_resumen.cell(row=fila_actual, column=5, value=int(total_registros))
-        ws_resumen.cell(row=fila_actual, column=6, value=porcentaje)  # <-- Ahora es decimal (0.3984)
+        ws_resumen.cell(row=fila_actual, column=4, value=pct_presentes)
+        ws_resumen.cell(row=fila_actual, column=5, value=int(no_presentes_count))
+        ws_resumen.cell(row=fila_actual, column=6, value=pct_no_presentes)
+        ws_resumen.cell(row=fila_actual, column=7, value=int(total_registros))
+        ws_resumen.cell(row=fila_actual, column=8, value=pct_total)
         fila_actual += 1
 
     # Fila de TOTAL
-    porcentaje_total = (total_presentes / total_registros_sire_sunat) if total_registros_sire_sunat > 0 else 0
+    pct_total_presentes = (total_presentes / total_registros_sire_sunat) if total_registros_sire_sunat > 0 else 0
+    pct_total_no_presentes = (total_no_presentes / total_registros_sire_sunat) if total_registros_sire_sunat > 0 else 0
+    
     ws_resumen.cell(row=fila_actual, column=1, value='TOTAL')
     ws_resumen.cell(row=fila_actual, column=2, value='')
     ws_resumen.cell(row=fila_actual, column=3, value=int(total_presentes))
-    ws_resumen.cell(row=fila_actual, column=4, value=int(total_no_presentes))
-    ws_resumen.cell(row=fila_actual, column=5, value=int(total_registros_sire_sunat))
-    ws_resumen.cell(row=fila_actual, column=6, value=porcentaje_total)  # <-- Ahora es decimal
+    ws_resumen.cell(row=fila_actual, column=4, value=pct_total_presentes)
+    ws_resumen.cell(row=fila_actual, column=5, value=int(total_no_presentes))
+    ws_resumen.cell(row=fila_actual, column=6, value=pct_total_no_presentes)
+    ws_resumen.cell(row=fila_actual, column=7, value=int(total_registros_sire_sunat))
+    ws_resumen.cell(row=fila_actual, column=8, value=1.0)
 
     _aplicar_formato_encabezado(ws_resumen, row=2)
     
-    for col_idx in range(1, 7):
+    # Negrita para la fila de total
+    for col_idx in range(1, 9):
         ws_resumen.cell(row=fila_actual, column=col_idx).font = Font(bold=True)
 
-    # Formato de porcentaje para la columna F (índice 6)
+    # Formato de porcentaje para columnas D, F, H (índices 4, 6, 8)
     for row in range(3, fila_actual + 1):
-        cell = ws_resumen.cell(row=row, column=6)
-        cell.number_format = '0.00%'  # <-- Esto mostrará 39.84% cuando el valor es 0.3984
+        for col_idx in [4, 6, 8]:
+            cell = ws_resumen.cell(row=row, column=col_idx)
+            cell.number_format = '0.00%'
 
-    # Barra de datos
+    # ---- BARRAS DE DATOS para columnas de porcentaje (D, F, H) ----
     data_bar_rule = DataBarRule(
         start_type='min',
         end_type='max',
@@ -707,13 +787,55 @@ def generar_reporte_presentes_no_presentes_sire_sunat(df_sire_sunat, df_sire_bn,
         maxLength=None
     )
     if fila_actual > 3:
+        # Columna D (Presentes %)
+        ws_resumen.conditional_formatting.add(
+            f'D3:D{fila_actual-1}',
+            data_bar_rule
+        )
+        # Columna F (No presentes %)
         ws_resumen.conditional_formatting.add(
             f'F3:F{fila_actual-1}',
             data_bar_rule
         )
+        # Columna H (Total %)
+        ws_resumen.conditional_formatting.add(
+            f'H3:H{fila_actual-1}',
+            data_bar_rule
+        )
 
-    for col in ['A', 'B', 'C', 'D', 'E', 'F']:
-        ws_resumen.column_dimensions[col].width = 25
+    # Ajustar ancho de columnas
+    ws_resumen.column_dimensions['A'].width = 20
+    ws_resumen.column_dimensions['B'].width = 30
+    ws_resumen.column_dimensions['C'].width = 22
+    ws_resumen.column_dimensions['D'].width = 18
+    ws_resumen.column_dimensions['E'].width = 25
+    ws_resumen.column_dimensions['F'].width = 18
+    ws_resumen.column_dimensions['G'].width = 22
+    ws_resumen.column_dimensions['H'].width = 18
+
+    # ---- DESCRIPCIÓN EXPLICATIVA (3-4 líneas debajo de la tabla) ----
+    fila_descripcion = fila_actual + 3
+
+    descripcion = [
+        "📌 DESCRIPCIÓN DEL REPORTE:",
+        "Este reporte compara los comprobantes registrados en SIRE_SUNAT y SIRE_BN.",
+        "Por ejemplo, si hay 6,459 facturas (Tipo 01) en SIRE_SUNAT, y 2,573 están en SIRE_BN,",
+        "significa que el 39.84% de las facturas están conciliadas, pero el 60.16% (3,886 facturas)",
+        "aún no están registradas en SIRE_BN y requieren revisión.",
+        "• Coincidencia (%): Porcentaje de registros que están en ambos sistemas.",
+        "• No coincidencia (%): Porcentaje de registros que faltan en uno de los sistemas.",
+        "✅ El objetivo es que la coincidencia sea del 100%. Si hay diferencias, deben revisarse."
+    ]
+    
+    for i, linea in enumerate(descripcion):
+        ws_resumen.cell(row=fila_descripcion + i, column=1, value=linea)
+        if i == 0:
+            ws_resumen.cell(row=fila_descripcion + i, column=1).font = Font(bold=True, size=12)
+        ws_resumen.cell(row=fila_descripcion + i, column=1).alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
+    
+    # Ajustar altura de filas para la descripción
+    for i in range(len(descripcion)):
+        ws_resumen.row_dimensions[fila_descripcion + i].height = 22
 
     # ---------- HOJAS POR TIPO DE DOCUMENTO ----------
     for tipo in tipos_ordenados:
