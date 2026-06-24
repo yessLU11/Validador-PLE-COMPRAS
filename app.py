@@ -491,7 +491,7 @@ with tab_duplicados_internos:
                                if not (isinstance(col, str) and col.startswith("_"))]
                 df_mostrar = st.session_state.df_interno_duplicados[cols_mostrar].head(20)
                
-                st.dataframe(df_mostrar, width='stretch', hide_index=True)
+                st.dataframe(df_mostrar, use_container_width=True, hide_index=True)
                
                 if len(st.session_state.df_interno_duplicados) > 20:
                     st.caption(f"📋 Mostrando 20 de {len(st.session_state.df_interno_duplicados)} duplicados. Descarga el Excel para ver todos.")
