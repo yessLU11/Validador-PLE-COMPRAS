@@ -401,12 +401,12 @@ with tab_validar:
 # Nueva función: Detecta duplicados DENTRO de un mismo archivo Excel
 # Lee múltiples hojas y compara registros basándose en columnas clave
 with tab_duplicados_internos:
-    st.markdown("## 🔍 Validador de Duplicados Internos")
+    st.markdown("## Validador de Duplicados Internos")
     st.markdown("Sube un archivo Excel para detectar duplicados **dentro del mismo archivo** (comparando todas las hojas)")
    
     # Sección de carga
     st.markdown("---")
-    st.markdown("### 📂 Cargar archivo")
+    st.markdown("#### 📂 Cargar archivo")
    
     archivo_interno = st.file_uploader(
         "Selecciona un archivo Excel (.xlsx)",
@@ -549,20 +549,10 @@ with tab_duplicados_internos:
 
 
 # ============================================================================
-# PESTAÑA: CONCILIACIÓN + REPORTE SOLO PARA PLECOMPRAS_BN
-# ============================================================================
-
-
-# ============================================================================
-# PESTAÑA 3: CONCILIACIÓN + BOTÓN PRESENTES VS NO PRESENTES (CON SESSION_STATE)
-# ============================================================================
-
-
-# ============================================================================
 # PESTAÑA 3: CONCILIACIÓN + BOTONES DE REPORTES
 # ============================================================================
 with tab_conciliacion:
-    st.markdown("## 🔁 Conciliación de PLE Compras")
+    st.markdown("## Conciliación de PLE Compras")
     st.markdown("Sube dos archivos Excel y especifica la fila donde comienzan los datos (1‑based).")
 
 
@@ -631,7 +621,7 @@ with tab_conciliacion:
 
 
                 st.success("✅ Conciliación completada")
-                st.markdown("### 📊 Resumen")
+                st.markdown("### Resumen")
                 df_resumen = pd.DataFrame({
                     "Concepto": ["Total registros (serie)", "IDs únicos", "Registros solo en este archivo", "Registros en común", "Diferencias totales"],
                     archivo1.name: [resumen['total_registros_1'], resumen['ids_unicos_1'], resumen['solo_en_1'], resumen['comunes'], resumen['diferencias_totales']],
@@ -1071,7 +1061,7 @@ with tab_info:
 # El sidebar contiene toda la funcionalidad de carga, validación y gestión.
 # Este es el panel principal donde el usuario interactúa con la aplicación.
 with st.sidebar:
-    st.markdown('# <span style="color:white">📊 PLE COMPRAS</span>', unsafe_allow_html=True)
+    st.markdown('# <span style="color:white">PLE COMPRAS</span>', unsafe_allow_html=True)
     st.markdown('### <span style="color:white">Validador de Duplicados</span>', unsafe_allow_html=True)
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
    

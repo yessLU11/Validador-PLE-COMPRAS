@@ -301,6 +301,8 @@ def generar_reporte_conciliacion(resumen, solo1, solo2, df1, df2, nombre1, nombr
         1. Resumen (dos tablas: resumen general + desglose por tipo)
         2. Solo en SIRE_SUNAT
         3. Solo en SIRE_BN
+        4. En ambos SIRE_SUNAT y SIRE_BN
+
     Los encabezados siempre usan 'SIRE_SUNAT' y 'SIRE_BN' en lugar de los nombres de archivo.
     """
     wb = Workbook()
@@ -498,8 +500,6 @@ def _escribir_dataframe_con_formato_con_titulo(ws, df, start_row, titulo, total=
 # ------------------------------------------------------------
 # 6. REPORTE: REGISTROS DE SIRE_BN (DESDE SIRE_BN HACIA SIRE_SUNAT)
 # ------------------------------------------------------------
-
-
 def generar_reporte_presentes_no_presentes(df_sire_sunat, df_sire_bn, nombre_sire_sunat, nombre_sire_bn, ruta_salida):
     """
     Genera un reporte Excel que muestra, por tipo de documento:
@@ -507,24 +507,24 @@ def generar_reporte_presentes_no_presentes(df_sire_sunat, df_sire_bn, nombre_sir
     - Cuántos NO están presentes en SIRE_SUNAT
     - Porcentajes de presentes y no presentes (suma = 100%)
     - Nombre del tipo de documento
-    - Barra de datos en todas las columnas de porcentaje
+    - Barra de datos en todas las columnas de porcentaje (mantenido con openpyxl)
     - Detalle de TODAS las filas para cada tipo (incluyendo duplicados)
     - Descripción explicativa debajo de la tabla
-   
-    Título: RESUMEN: REGISTROS DEL SIRE_BN
-    Columnas: Tipo de Documento | Nombre de Tipo de Doc | Presentes en SIRE_SUNAT | Coincidencia(%) | No presentes en SIRE_SUNAT | Coincidencia(%) | Total en SIRE_BN | Coincidencia(%)
+    - Gráfica de barras agrupadas como imagen (con matplotlib)
     """
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
     from openpyxl.formatting.rule import DataBarRule
-
+    from openpyxl.drawing.image import Image
+    import matplotlib.pyplot as plt
+    import io
+    import pandas as pd
 
     required_cols = ['ID_CONCILIACION', 'TipoDoc_Norm']
     for col in required_cols:
         if col not in df_sire_sunat.columns or col not in df_sire_bn.columns:
             raise ValueError(f"Ambos DataFrames deben tener la columna '{col}'")
-
 
     # Diccionario de nombres de tipos de documento
     TIPOS_DOC_NOMBRES = {
@@ -549,14 +549,11 @@ def generar_reporte_presentes_no_presentes(df_sire_sunat, df_sire_bn, nombre_sir
         'DESCONOCIDO': 'Tipo desconocido'
     }
 
-
     wb = Workbook()
     wb.remove(wb.active)
 
-
     # ---------- HOJA 1: Resumen ----------
     ws_resumen = wb.create_sheet("Resumen")
-
 
     # TÍTULO
     ws_resumen['A1'] = 'RESUMEN: REGISTROS DEL SIRE_BN'
@@ -564,7 +561,6 @@ def generar_reporte_presentes_no_presentes(df_sire_sunat, df_sire_bn, nombre_sir
     ws_resumen['A1'].font = Font(bold=True, size=14, color="FFFFFF")
     ws_resumen['A1'].fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
     ws_resumen['A1'].alignment = Alignment(horizontal='center', vertical='center')
-
 
     # ENCABEZADOS CON NUEVAS COLUMNAS
     headers = [
@@ -579,45 +575,50 @@ def generar_reporte_presentes_no_presentes(df_sire_sunat, df_sire_bn, nombre_sir
     ]
     ws_resumen.append(headers)
 
-
     df_sire_bn['TipoDoc_Norm'] = df_sire_bn['TipoDoc_Norm'].fillna('DESCONOCIDO')
     df_sire_bn['TipoDoc_Norm'] = df_sire_bn['TipoDoc_Norm'].replace('', 'DESCONOCIDO')
-   
+    
     tipos_sire_bn = df_sire_bn['TipoDoc_Norm'].unique()
     tipos_numericos = sorted([t for t in tipos_sire_bn if t != 'DESCONOCIDO' and t.isdigit()], key=lambda x: int(x))
     tipos_ordenados = tipos_numericos + (['DESCONOCIDO'] if 'DESCONOCIDO' in tipos_sire_bn else [])
 
-
     ids_sire_sunat = set(df_sire_sunat['ID_CONCILIACION'].dropna())
-
 
     fila_actual = 3
     total_presentes = 0
     total_no_presentes = 0
     total_registros_sire_bn = 0
-
+    
+    # Guardar datos para la gráfica
+    datos_grafica = []
 
     for tipo in tipos_ordenados:
         df_sire_bn_tipo = df_sire_bn[df_sire_bn['TipoDoc_Norm'] == tipo]
         total_registros = len(df_sire_bn_tipo)
-       
+        
         mask_presente = df_sire_bn_tipo['ID_CONCILIACION'].isin(ids_sire_sunat)
         presentes_count = mask_presente.sum()
         no_presentes_count = total_registros - presentes_count
-       
+        
         # Calcular porcentajes (como decimales)
         pct_presentes = (presentes_count / total_registros) if total_registros > 0 else 0
         pct_no_presentes = (no_presentes_count / total_registros) if total_registros > 0 else 0
         pct_total = 1.0  # Siempre 100%
 
-
         total_presentes += presentes_count
         total_no_presentes += no_presentes_count
         total_registros_sire_bn += total_registros
 
-
         nombre_tipo = TIPOS_DOC_NOMBRES.get(tipo, tipo)
-
+        
+        # Guardar para gráfica
+        datos_grafica.append({
+            'Tipo': tipo,
+            'Nombre': nombre_tipo,
+            'Presentes': int(presentes_count),
+            'No_Presentes': int(no_presentes_count),
+            'Total': int(total_registros)
+        })
 
         ws_resumen.cell(row=fila_actual, column=1, value=tipo)
         ws_resumen.cell(row=fila_actual, column=2, value=nombre_tipo)
@@ -629,11 +630,10 @@ def generar_reporte_presentes_no_presentes(df_sire_sunat, df_sire_bn, nombre_sir
         ws_resumen.cell(row=fila_actual, column=8, value=pct_total)
         fila_actual += 1
 
-
     # Fila de TOTAL
     pct_total_presentes = (total_presentes / total_registros_sire_bn) if total_registros_sire_bn > 0 else 0
     pct_total_no_presentes = (total_no_presentes / total_registros_sire_bn) if total_registros_sire_bn > 0 else 0
-   
+    
     ws_resumen.cell(row=fila_actual, column=1, value='TOTAL')
     ws_resumen.cell(row=fila_actual, column=2, value='')
     ws_resumen.cell(row=fila_actual, column=3, value=int(total_presentes))
@@ -643,20 +643,17 @@ def generar_reporte_presentes_no_presentes(df_sire_sunat, df_sire_bn, nombre_sir
     ws_resumen.cell(row=fila_actual, column=7, value=int(total_registros_sire_bn))
     ws_resumen.cell(row=fila_actual, column=8, value=1.0)
 
-
     _aplicar_formato_encabezado(ws_resumen, row=2)
-   
+    
     # Negrita para la fila de total
     for col_idx in range(1, 9):
         ws_resumen.cell(row=fila_actual, column=col_idx).font = Font(bold=True)
-
 
     # Formato de porcentaje para columnas D, F, H (índices 4, 6, 8)
     for row in range(3, fila_actual + 1):
         for col_idx in [4, 6, 8]:
             cell = ws_resumen.cell(row=row, column=col_idx)
             cell.number_format = '0.00%'
-
 
     # ---- BARRAS DE DATOS para columnas de porcentaje (D, F, H) ----
     data_bar_rule = DataBarRule(
@@ -684,7 +681,6 @@ def generar_reporte_presentes_no_presentes(df_sire_sunat, df_sire_bn, nombre_sir
             data_bar_rule
         )
 
-
     # Ajustar ancho de columnas
     ws_resumen.column_dimensions['A'].width = 20
     ws_resumen.column_dimensions['B'].width = 30
@@ -695,61 +691,100 @@ def generar_reporte_presentes_no_presentes(df_sire_sunat, df_sire_bn, nombre_sir
     ws_resumen.column_dimensions['G'].width = 18
     ws_resumen.column_dimensions['H'].width = 18
 
-
     # ---- DESCRIPCIÓN EXPLICATIVA (3-4 líneas debajo de la tabla) ----
-   
     fila_descripcion = fila_actual + 3
 
-
     descripcion = [
-        "📌 DESCRIPCIÓN DEL REPORTE:",
-        "Este reporte compara los comprobantes registrados en SIRE_BN y SIRE_SUNAT.",
-        "Por ejemplo, si hay 2,714 facturas (Tipo 01) en SIRE_BN, y 1,795 están en SIRE_SUNAT,",
-        "significa que el 66.14% de las facturas están conciliadas, pero el 33.86% (919 facturas)",
-        "aún no están registradas en SIRE_SUNAT y requieren revisión.",
+        "DESCRIPCIÓN DEL REPORTE:",
         "• Coincidencia (%): Porcentaje de registros que están en ambos sistemas.",
         "• No coincidencia (%): Porcentaje de registros que faltan en uno de los sistemas.",
-        "✅ El objetivo es que la coincidencia sea del 100%. Si hay diferencias, deben revisarse."
     ]
-   
+    
     for i, linea in enumerate(descripcion):
         ws_resumen.cell(row=fila_descripcion + i, column=1, value=linea)
-        # Dar formato a la primera línea (negrita y más grande)
         if i == 0:
             ws_resumen.cell(row=fila_descripcion + i, column=1).font = Font(bold=True, size=12)
-        # Alinear texto
         ws_resumen.cell(row=fila_descripcion + i, column=1).alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
-   
-    # Ajustar altura de filas para la descripción
+    
     for i in range(len(descripcion)):
         ws_resumen.row_dimensions[fila_descripcion + i].height = 22
 
+    # ---- GENERAR GRÁFICA CON MATPLOTLIB ----
+    if datos_grafica:
+        df_grafica = pd.DataFrame(datos_grafica)
+        
+        # Crear figura y ejes
+        fig, ax = plt.subplots(figsize=(10, 6))
+        
+        # Configurar posición de barras
+        x = range(len(df_grafica))
+        width = 0.25
+        
+        # Barras
+        ax.bar([i - width for i in x], df_grafica['Presentes'], width, label='Presentes en SIRE_SUNAT', color='#2563EB')
+        ax.bar(x, df_grafica['No_Presentes'], width, label='No presentes en SIRE_SUNAT', color='#EF4444')
+        ax.bar([i + width for i in x], df_grafica['Total'], width, label='Total en SIRE_BN', color='#10B981')
+        
+        # Configurar ejes
+        ax.set_xlabel('Tipo de Documento')
+        ax.set_ylabel('Cantidad de Registros')
+        ax.set_title('Conciliación por Tipo de Documento')
+        ax.set_xticks(x)
+        ax.set_xticklabels(df_grafica['Tipo'], rotation=45, ha='right')
+        ax.legend()
+        
+        # Ajustar layout
+        plt.tight_layout()
+        
+        # Guardar gráfica en memoria como imagen
+        img_buffer = io.BytesIO()
+        plt.savefig(img_buffer, format='png', dpi=100, bbox_inches='tight')
+        img_buffer.seek(0)
+        plt.close()
+        
+        # Insertar imagen en Excel
+        img = Image(img_buffer)
+        # Ajustar tamaño de la imagen
+        img.width = 700
+        img.height = 400
+        
+        # Calcular posición (debajo de la descripción)
+        fila_grafica = fila_descripcion + len(descripcion) + 2
+        # Convertir fila a coordenada de celda (columna A)
+        from openpyxl.utils import get_column_letter
+        posicion = f'A{fila_grafica}'
+        ws_resumen.add_image(img, posicion)
 
+    # ---- GUARDAR ARCHIVO CON OPENPYXL (MANTIENE FORMATO) ----
+    wb.save(ruta_salida)
+    
     # ---------- HOJAS POR TIPO DE DOCUMENTO ----------
+    # (Se mantiene igual, se agregan después de guardar el archivo principal)
+    from openpyxl import load_workbook
+    
+    wb = load_workbook(ruta_salida)
+    
     for tipo in tipos_ordenados:
         sheet_name = f"Tipo {tipo}"
         if len(sheet_name) > 31:
             sheet_name = sheet_name[:31]
         ws_tipo = wb.create_sheet(sheet_name)
 
-
         df_sire_bn_tipo = df_sire_bn[df_sire_bn['TipoDoc_Norm'] == tipo]
         mask_presente = df_sire_bn_tipo['ID_CONCILIACION'].isin(ids_sire_sunat)
 
-
         fila_inicio = 1
         ws_tipo.merge_cells(f'A{fila_inicio}:E{fila_inicio}')
-        celda_titulo = ws_tipo.cell(row=fila_inicio, column=1, value=f'✅ PRESENTES EN SIRE_SUNAT (Total: {mask_presente.sum()})')
+        celda_titulo = ws_tipo.cell(row=fila_inicio, column=1, value=f'PRESENTES EN SIRE_SUNAT (Total: {mask_presente.sum()})')
         celda_titulo.font = Font(bold=True, size=12, color="FFFFFF")
         celda_titulo.fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
         celda_titulo.alignment = Alignment(horizontal='center', vertical='center')
         fila_inicio += 1
 
-
         df_presentes = df_sire_bn_tipo[mask_presente].copy()
         if not df_presentes.empty:
             cols_orden = ['ID_CONCILIACION', 'Hoja_Origen'] + \
-                         [c for c in df_presentes.columns if c not in ['ID_CONCILIACION',  'Hoja_Origen']]
+                         [c for c in df_presentes.columns if c not in ['ID_CONCILIACION', 'Hoja_Origen']]
             df_presentes = df_presentes[cols_orden]
             _escribir_dataframe_con_formato(ws_tipo, df_presentes, start_row=fila_inicio)
             fila_inicio += len(df_presentes) + 2
@@ -757,50 +792,36 @@ def generar_reporte_presentes_no_presentes(df_sire_sunat, df_sire_bn, nombre_sir
             ws_tipo.cell(row=fila_inicio, column=1, value='No hay registros presentes en SIRE_SUNAT para este tipo.')
             fila_inicio += 2
 
-
         ws_tipo.merge_cells(f'A{fila_inicio}:E{fila_inicio}')
-        celda_titulo = ws_tipo.cell(row=fila_inicio, column=1, value=f'❌ NO PRESENTES EN SIRE_SUNAT (Total: {(~mask_presente).sum()})')
+        celda_titulo = ws_tipo.cell(row=fila_inicio, column=1, value=f'NO PRESENTES EN SIRE_SUNAT (Total: {(~mask_presente).sum()})')
         celda_titulo.font = Font(bold=True, size=12, color="FFFFFF")
         celda_titulo.fill = PatternFill(start_color="EF4444", end_color="EF4444", fill_type="solid")
         celda_titulo.alignment = Alignment(horizontal='center', vertical='center')
         fila_inicio += 1
 
-
-                # --- Sección: No presentes en SIRE_SUNAT (con separación por mes) ---
+        # --- Sección: No presentes en SIRE_SUNAT (con separación por mes) ---
         df_no_presentes = df_sire_bn_tipo[~mask_presente].copy()
 
-
         if not df_no_presentes.empty:
-            # Extraer fechas de la columna E (índice 4)
             fechas = df_no_presentes.iloc[:, 4] if df_no_presentes.shape[1] > 4 else pd.Series([''] * len(df_no_presentes))
             meses = fechas.apply(extraer_mes_fecha)
             meses_validos = [m for m in meses if m is not None]
             mes_actual = max(meses_validos) if meses_validos else None
 
-
             if mes_actual:
                 mask_mes_actual = meses == mes_actual
                 df_mes_actual = df_no_presentes[mask_mes_actual].copy()
-                df_meses_anteriores = df_no_presentes[~mask_mes_actual].copy()  # <-- CORREGIDO: sin llaves
+                df_meses_anteriores = df_no_presentes[~mask_mes_actual].copy()
 
-
-                # Ordenar por fecha descendente
                 if not df_mes_actual.empty:
                     df_mes_actual = df_mes_actual.sort_values(by=df_mes_actual.columns[4], ascending=False)
-                if not df_meses_anteriores.empty:
-                    df_meses_anteriores = df_meses_anteriores.sort_values(by=df_meses_anteriores.columns[4], ascending=False)
-
-
-                # ---- Mes Actual ----
-                if not df_mes_actual.empty:
                     ws_tipo.merge_cells(f'A{fila_inicio}:E{fila_inicio}')
-                    celda_titulo = ws_tipo.cell(row=fila_inicio, column=1, value=f'📅 MES ACTUAL ({mes_actual[:4]}-{mes_actual[4:6]}) - Total: {len(df_mes_actual)}')
-                    celda_titulo.font = Font(bold=True, size=12, color="FFFFFF")
-                    celda_titulo.fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
-                    celda_titulo.alignment = Alignment(horizontal='center', vertical='center')
+                    celda_mes = ws_tipo.cell(row=fila_inicio, column=1, value=f'MES ACTUAL ({mes_actual[:4]}-{mes_actual[4:6]}) - Total: {len(df_mes_actual)}')
+                    celda_mes.font = Font(bold=True, size=12, color="FFFFFF")
+                    celda_mes.fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
+                    celda_mes.alignment = Alignment(horizontal='center', vertical='center')
                     fila_inicio += 1
-
-
+                    
                     cols_orden = ['ID_CONCILIACION', 'Hoja_Origen'] + \
                                  [c for c in df_mes_actual.columns if c not in ['ID_CONCILIACION', 'Hoja_Origen']]
                     df_mes_actual_export = df_mes_actual[cols_orden]
@@ -809,17 +830,15 @@ def generar_reporte_presentes_no_presentes(df_sire_sunat, df_sire_bn, nombre_sir
                     ws_tipo.cell(row=fila_inicio, column=1, value='No hay registros del mes actual.')
                     fila_inicio += 2
 
-
-                # ---- Meses Anteriores ----
                 if not df_meses_anteriores.empty:
+                    df_meses_anteriores = df_meses_anteriores.sort_values(by=df_meses_anteriores.columns[4], ascending=False)
                     ws_tipo.merge_cells(f'A{fila_inicio}:E{fila_inicio}')
-                    celda_titulo = ws_tipo.cell(row=fila_inicio, column=1, value=f'📅 MESES ANTERIORES - Total: {len(df_meses_anteriores)}')
-                    celda_titulo.font = Font(bold=True, size=12, color="FFFFFF")
-                    celda_titulo.fill = PatternFill(start_color="EF4444", end_color="EF4444", fill_type="solid")
-                    celda_titulo.alignment = Alignment(horizontal='center', vertical='center')
+                    celda_meses = ws_tipo.cell(row=fila_inicio, column=1, value=f'MESES ANTERIORES - Total: {len(df_meses_anteriores)}')
+                    celda_meses.font = Font(bold=True, size=12, color="FFFFFF")
+                    celda_meses.fill = PatternFill(start_color="EF4444", end_color="EF4444", fill_type="solid")
+                    celda_meses.alignment = Alignment(horizontal='center', vertical='center')
                     fila_inicio += 1
-
-
+                    
                     cols_orden = ['ID_CONCILIACION', 'Hoja_Origen'] + \
                                  [c for c in df_meses_anteriores.columns if c not in ['ID_CONCILIACION', 'Hoja_Origen']]
                     df_meses_anteriores_export = df_meses_anteriores[cols_orden]
@@ -828,14 +847,12 @@ def generar_reporte_presentes_no_presentes(df_sire_sunat, df_sire_bn, nombre_sir
                     ws_tipo.cell(row=fila_inicio, column=1, value='No hay registros de meses anteriores.')
                     fila_inicio += 2
             else:
-                # Si no se pudo extraer mes, mostrar todo junto
                 ws_tipo.merge_cells(f'A{fila_inicio}:E{fila_inicio}')
-                celda_titulo = ws_tipo.cell(row=fila_inicio, column=1, value=f'❌ NO PRESENTES EN SIRE_SUNAT (Total: {len(df_no_presentes)})')
+                celda_titulo = ws_tipo.cell(row=fila_inicio, column=1, value=f'NO PRESENTES EN SIRE_SUNAT (Total: {len(df_no_presentes)})')
                 celda_titulo.font = Font(bold=True, size=12, color="FFFFFF")
                 celda_titulo.fill = PatternFill(start_color="EF4444", end_color="EF4444", fill_type="solid")
                 celda_titulo.alignment = Alignment(horizontal='center', vertical='center')
                 fila_inicio += 1
-
 
                 cols_orden = ['ID_CONCILIACION', 'Hoja_Origen'] + \
                              [c for c in df_no_presentes.columns if c not in ['ID_CONCILIACION', 'Hoja_Origen']]
@@ -845,18 +862,12 @@ def generar_reporte_presentes_no_presentes(df_sire_sunat, df_sire_bn, nombre_sir
             ws_tipo.cell(row=fila_inicio, column=1, value='No hay registros no presentes en SIRE_SUNAT para este tipo.')
             fila_inicio += 2
 
-
-
-
     wb.save(ruta_salida)
     return ruta_salida
-
 
 # ------------------------------------------------------------
 # 7. REPORTE: REGISTROS DE SIRE_SUNAT (DESDE SIRE_SUNAT HACIA SIRE_BN)
 # ------------------------------------------------------------
-
-
 def generar_reporte_presentes_no_presentes_sire_sunat(df_sire_sunat, df_sire_bn, nombre_sire_sunat, nombre_sire_bn, ruta_salida):
     """
     Genera un reporte Excel que muestra, por tipo de documento:
@@ -864,10 +875,11 @@ def generar_reporte_presentes_no_presentes_sire_sunat(df_sire_sunat, df_sire_bn,
     - Cuántos NO están presentes en SIRE_BN
     - Porcentajes de presentes y no presentes (suma = 100%)
     - Nombre del tipo de documento
-    - Barra de datos en todas las columnas de porcentaje
+    - Barra de datos en todas las columnas de porcentaje (mantenido con openpyxl)
     - Detalle de TODAS las filas para cada tipo (incluyendo duplicados)
     - Descripción explicativa debajo de la tabla
-   
+    - Gráfica de barras agrupadas como imagen (con matplotlib)
+    
     Título: RESUMEN: REGISTROS DE SIRE_SUNAT
     Columnas: Tipo de Documento | Nombre de Tipo de Doc | Presentes en SIRE_BN | Coincidencia(%) | No presentes en SIRE_BN | Coincidencia(%) | Total en SIRE_SUNAT | Coincidencia(%)
     """
@@ -875,13 +887,15 @@ def generar_reporte_presentes_no_presentes_sire_sunat(df_sire_sunat, df_sire_bn,
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
     from openpyxl.formatting.rule import DataBarRule
-
+    from openpyxl.drawing.image import Image
+    import matplotlib.pyplot as plt
+    import io
+    import pandas as pd
 
     required_cols = ['ID_CONCILIACION', 'TipoDoc_Norm']
     for col in required_cols:
         if col not in df_sire_sunat.columns or col not in df_sire_bn.columns:
             raise ValueError(f"Ambos DataFrames deben tener la columna '{col}'")
-
 
     # Diccionario de nombres de tipos de documento
     TIPOS_DOC_NOMBRES = {
@@ -906,14 +920,11 @@ def generar_reporte_presentes_no_presentes_sire_sunat(df_sire_sunat, df_sire_bn,
         'DESCONOCIDO': 'Tipo desconocido'
     }
 
-
     wb = Workbook()
     wb.remove(wb.active)
 
-
     # ---------- HOJA 1: Resumen ----------
     ws_resumen = wb.create_sheet("Resumen")
-
 
     # TÍTULO
     ws_resumen['A1'] = 'RESUMEN: REGISTROS DE SIRE_SUNAT'
@@ -921,7 +932,6 @@ def generar_reporte_presentes_no_presentes_sire_sunat(df_sire_sunat, df_sire_bn,
     ws_resumen['A1'].font = Font(bold=True, size=14, color="FFFFFF")
     ws_resumen['A1'].fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
     ws_resumen['A1'].alignment = Alignment(horizontal='center', vertical='center')
-
 
     # ENCABEZADOS CON NUEVAS COLUMNAS
     headers = [
@@ -936,45 +946,50 @@ def generar_reporte_presentes_no_presentes_sire_sunat(df_sire_sunat, df_sire_bn,
     ]
     ws_resumen.append(headers)
 
-
     df_sire_sunat['TipoDoc_Norm'] = df_sire_sunat['TipoDoc_Norm'].fillna('DESCONOCIDO')
     df_sire_sunat['TipoDoc_Norm'] = df_sire_sunat['TipoDoc_Norm'].replace('', 'DESCONOCIDO')
-   
+    
     tipos_sire_sunat = df_sire_sunat['TipoDoc_Norm'].unique()
     tipos_numericos = sorted([t for t in tipos_sire_sunat if t != 'DESCONOCIDO' and t.isdigit()], key=lambda x: int(x))
     tipos_ordenados = tipos_numericos + (['DESCONOCIDO'] if 'DESCONOCIDO' in tipos_sire_sunat else [])
 
-
     ids_sire_bn = set(df_sire_bn['ID_CONCILIACION'].dropna())
-
 
     fila_actual = 3
     total_presentes = 0
     total_no_presentes = 0
     total_registros_sire_sunat = 0
-
+    
+    # Guardar datos para la gráfica
+    datos_grafica = []
 
     for tipo in tipos_ordenados:
         df_sire_sunat_tipo = df_sire_sunat[df_sire_sunat['TipoDoc_Norm'] == tipo]
         total_registros = len(df_sire_sunat_tipo)
-       
+        
         mask_presente = df_sire_sunat_tipo['ID_CONCILIACION'].isin(ids_sire_bn)
         presentes_count = mask_presente.sum()
         no_presentes_count = total_registros - presentes_count
-       
+        
         # Calcular porcentajes (como decimales)
         pct_presentes = (presentes_count / total_registros) if total_registros > 0 else 0
         pct_no_presentes = (no_presentes_count / total_registros) if total_registros > 0 else 0
         pct_total = 1.0  # Siempre 100%
 
-
         total_presentes += presentes_count
         total_no_presentes += no_presentes_count
         total_registros_sire_sunat += total_registros
 
-
         nombre_tipo = TIPOS_DOC_NOMBRES.get(tipo, tipo)
-
+        
+        # Guardar para gráfica
+        datos_grafica.append({
+            'Tipo': tipo,
+            'Nombre': nombre_tipo,
+            'Presentes': int(presentes_count),
+            'No_Presentes': int(no_presentes_count),
+            'Total': int(total_registros)
+        })
 
         ws_resumen.cell(row=fila_actual, column=1, value=tipo)
         ws_resumen.cell(row=fila_actual, column=2, value=nombre_tipo)
@@ -986,11 +1001,10 @@ def generar_reporte_presentes_no_presentes_sire_sunat(df_sire_sunat, df_sire_bn,
         ws_resumen.cell(row=fila_actual, column=8, value=pct_total)
         fila_actual += 1
 
-
     # Fila de TOTAL
     pct_total_presentes = (total_presentes / total_registros_sire_sunat) if total_registros_sire_sunat > 0 else 0
     pct_total_no_presentes = (total_no_presentes / total_registros_sire_sunat) if total_registros_sire_sunat > 0 else 0
-   
+    
     ws_resumen.cell(row=fila_actual, column=1, value='TOTAL')
     ws_resumen.cell(row=fila_actual, column=2, value='')
     ws_resumen.cell(row=fila_actual, column=3, value=int(total_presentes))
@@ -1000,20 +1014,17 @@ def generar_reporte_presentes_no_presentes_sire_sunat(df_sire_sunat, df_sire_bn,
     ws_resumen.cell(row=fila_actual, column=7, value=int(total_registros_sire_sunat))
     ws_resumen.cell(row=fila_actual, column=8, value=1.0)
 
-
     _aplicar_formato_encabezado(ws_resumen, row=2)
-   
+    
     # Negrita para la fila de total
     for col_idx in range(1, 9):
         ws_resumen.cell(row=fila_actual, column=col_idx).font = Font(bold=True)
-
 
     # Formato de porcentaje para columnas D, F, H (índices 4, 6, 8)
     for row in range(3, fila_actual + 1):
         for col_idx in [4, 6, 8]:
             cell = ws_resumen.cell(row=row, column=col_idx)
             cell.number_format = '0.00%'
-
 
     # ---- BARRAS DE DATOS para columnas de porcentaje (D, F, H) ----
     data_bar_rule = DataBarRule(
@@ -1041,7 +1052,6 @@ def generar_reporte_presentes_no_presentes_sire_sunat(df_sire_sunat, df_sire_bn,
             data_bar_rule
         )
 
-
     # Ajustar ancho de columnas
     ws_resumen.column_dimensions['A'].width = 20
     ws_resumen.column_dimensions['B'].width = 30
@@ -1052,58 +1062,101 @@ def generar_reporte_presentes_no_presentes_sire_sunat(df_sire_sunat, df_sire_bn,
     ws_resumen.column_dimensions['G'].width = 22
     ws_resumen.column_dimensions['H'].width = 18
 
-
     # ---- DESCRIPCIÓN EXPLICATIVA (3-4 líneas debajo de la tabla) ----
     fila_descripcion = fila_actual + 3
 
-
     descripcion = [
-    "📌 DESCRIPCIÓN DEL REPORTE:",
-    "Este reporte compara los comprobantes registrados en SIRE_SUNAT y SIRE_BN.",
-    "Por ejemplo, si hay 6,459 facturas (Tipo 01) en SIRE_SUNAT, y 2,573 están en SIRE_BN,",
-    "significa que el 39.84% de las facturas están conciliadas, pero el 60.16% (3,886 facturas)",
-    "aún no están registradas en SIRE_BN y requieren revisión.",
-    "• Coincidencia (%): Porcentaje de registros que están en ambos sistemas.",
-    "• No coincidencia (%): Porcentaje de registros que faltan en uno de los sistemas.",
-    "✅ El objetivo es que la coincidencia sea del 100%. Si hay diferencias, deben revisarse."
+        "DESCRIPCIÓN DEL REPORTE:",
+        "Este reporte compara los comprobantes registrados en SIRE_SUNAT y SIRE_BN.",
+        "• Coincidencia (%): Porcentaje de registros que están en ambos sistemas.",
+        "• No coincidencia (%): Porcentaje de registros que faltan en uno de los sistemas.",
     ]
-   
+    
     for i, linea in enumerate(descripcion):
         ws_resumen.cell(row=fila_descripcion + i, column=1, value=linea)
         if i == 0:
             ws_resumen.cell(row=fila_descripcion + i, column=1).font = Font(bold=True, size=12)
         ws_resumen.cell(row=fila_descripcion + i, column=1).alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
-   
-    # Ajustar altura de filas para la descripción
+    
     for i in range(len(descripcion)):
         ws_resumen.row_dimensions[fila_descripcion + i].height = 22
 
+    # ---- GENERAR GRÁFICA CON MATPLOTLIB ----
+    if datos_grafica:
+        df_grafica = pd.DataFrame(datos_grafica)
+        
+        # Crear figura y ejes
+        fig, ax = plt.subplots(figsize=(10, 6))
+        
+        # Configurar posición de barras
+        x = range(len(df_grafica))
+        width = 0.25
+        
+        # Barras
+        ax.bar([i - width for i in x], df_grafica['Presentes'], width, label='Presentes en SIRE_BN', color='#2563EB')
+        ax.bar(x, df_grafica['No_Presentes'], width, label='No presentes en SIRE_BN', color='#EF4444')
+        ax.bar([i + width for i in x], df_grafica['Total'], width, label='Total en SIRE_SUNAT', color='#10B981')
+        
+        # Configurar ejes
+        ax.set_xlabel('Tipo de Documento')
+        ax.set_ylabel('Cantidad de Registros')
+        ax.set_title('Conciliación por Tipo de Documento')
+        ax.set_xticks(x)
+        ax.set_xticklabels(df_grafica['Tipo'], rotation=45, ha='right')
+        ax.legend()
+        
+        # Ajustar layout
+        plt.tight_layout()
+        
+        # Guardar gráfica en memoria como imagen
+        img_buffer = io.BytesIO()
+        plt.savefig(img_buffer, format='png', dpi=100, bbox_inches='tight')
+        img_buffer.seek(0)
+        plt.close()
+        
+        # Insertar imagen en Excel
+        img = Image(img_buffer)
+        # Ajustar tamaño de la imagen
+        img.width = 700
+        img.height = 400
+        
+        # Calcular posición (debajo de la descripción)
+        fila_grafica = fila_descripcion + len(descripcion) + 2
+        # Convertir fila a coordenada de celda (columna A)
+        from openpyxl.utils import get_column_letter
+        posicion = f'A{fila_grafica}'
+        ws_resumen.add_image(img, posicion)
 
+    # ---- GUARDAR ARCHIVO CON OPENPYXL (MANTIENE FORMATO) ----
+    wb.save(ruta_salida)
+    
     # ---------- HOJAS POR TIPO DE DOCUMENTO ----------
+    # (Se mantiene igual, se agregan después de guardar el archivo principal)
+    from openpyxl import load_workbook
+    
+    wb = load_workbook(ruta_salida)
+    
     for tipo in tipos_ordenados:
         sheet_name = f"Tipo {tipo}"
         if len(sheet_name) > 31:
             sheet_name = sheet_name[:31]
         ws_tipo = wb.create_sheet(sheet_name)
 
-
         df_sire_sunat_tipo = df_sire_sunat[df_sire_sunat['TipoDoc_Norm'] == tipo]
         mask_presente = df_sire_sunat_tipo['ID_CONCILIACION'].isin(ids_sire_bn)
 
-
         fila_inicio = 1
         ws_tipo.merge_cells(f'A{fila_inicio}:E{fila_inicio}')
-        celda_titulo = ws_tipo.cell(row=fila_inicio, column=1, value=f'✅ PRESENTES EN SIRE_BN (Total: {mask_presente.sum()})')
+        celda_titulo = ws_tipo.cell(row=fila_inicio, column=1, value=f'PRESENTES EN SIRE_BN (Total: {mask_presente.sum()})')
         celda_titulo.font = Font(bold=True, size=12, color="FFFFFF")
         celda_titulo.fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
         celda_titulo.alignment = Alignment(horizontal='center', vertical='center')
         fila_inicio += 1
 
-
         df_presentes = df_sire_sunat_tipo[mask_presente].copy()
         if not df_presentes.empty:
-            cols_orden = ['ID_CONCILIACION',  'Hoja_Origen'] + \
-                         [c for c in df_presentes.columns if c not in ['ID_CONCILIACION',  'Hoja_Origen']]
+            cols_orden = ['ID_CONCILIACION', 'Hoja_Origen'] + \
+                         [c for c in df_presentes.columns if c not in ['ID_CONCILIACION', 'Hoja_Origen']]
             df_presentes = df_presentes[cols_orden]
             _escribir_dataframe_con_formato(ws_tipo, df_presentes, start_row=fila_inicio)
             fila_inicio += len(df_presentes) + 2
@@ -1111,45 +1164,36 @@ def generar_reporte_presentes_no_presentes_sire_sunat(df_sire_sunat, df_sire_bn,
             ws_tipo.cell(row=fila_inicio, column=1, value='No hay registros presentes en SIRE_BN para este tipo.')
             fila_inicio += 2
 
-
         ws_tipo.merge_cells(f'A{fila_inicio}:E{fila_inicio}')
-        celda_titulo = ws_tipo.cell(row=fila_inicio, column=1, value=f'❌ NO PRESENTES EN SIRE_BN (Total: {(~mask_presente).sum()})')
+        celda_titulo = ws_tipo.cell(row=fila_inicio, column=1, value=f'NO PRESENTES EN SIRE_BN (Total: {(~mask_presente).sum()})')
         celda_titulo.font = Font(bold=True, size=12, color="FFFFFF")
         celda_titulo.fill = PatternFill(start_color="EF4444", end_color="EF4444", fill_type="solid")
         celda_titulo.alignment = Alignment(horizontal='center', vertical='center')
         fila_inicio += 1
 
-
         # --- Sección: No presentes en SIRE_BN (con separación por mes) ---
         df_no_presentes = df_sire_sunat_tipo[~mask_presente].copy()
-       
+        
         if not df_no_presentes.empty:
-            # Extraer fechas de la columna E (índice 4)
             fechas = df_no_presentes.iloc[:, 4] if df_no_presentes.shape[1] > 4 else pd.Series([''] * len(df_no_presentes))
             meses = fechas.apply(extraer_mes_fecha)
             meses_validos = [m for m in meses if m is not None]
             mes_actual = max(meses_validos) if meses_validos else None
-           
+            
             if mes_actual:
                 mask_mes_actual = meses == mes_actual
                 df_mes_actual = df_no_presentes[mask_mes_actual].copy()
                 df_meses_anteriores = df_no_presentes[~mask_mes_actual].copy()
-               
-                # Ordenar por fecha descendente
+                
                 if not df_mes_actual.empty:
                     df_mes_actual = df_mes_actual.sort_values(by=df_mes_actual.columns[4], ascending=False)
-                if not df_meses_anteriores.empty:
-                    df_meses_anteriores = df_meses_anteriores.sort_values(by=df_meses_anteriores.columns[4], ascending=False)
-               
-                # ---- Mes Actual ----
-                if not df_mes_actual.empty:
                     ws_tipo.merge_cells(f'A{fila_inicio}:E{fila_inicio}')
-                    celda_titulo = ws_tipo.cell(row=fila_inicio, column=1, value=f'📅 MES ACTUAL ({mes_actual[:4]}-{mes_actual[4:6]}) - Total: {len(df_mes_actual)}')
-                    celda_titulo.font = Font(bold=True, size=12, color="FFFFFF")
-                    celda_titulo.fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
-                    celda_titulo.alignment = Alignment(horizontal='center', vertical='center')
+                    celda_mes = ws_tipo.cell(row=fila_inicio, column=1, value=f'MES ACTUAL ({mes_actual[:4]}-{mes_actual[4:6]}) - Total: {len(df_mes_actual)}')
+                    celda_mes.font = Font(bold=True, size=12, color="FFFFFF")
+                    celda_mes.fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
+                    celda_mes.alignment = Alignment(horizontal='center', vertical='center')
                     fila_inicio += 1
-                   
+                    
                     cols_orden = ['ID_CONCILIACION', 'Hoja_Origen'] + \
                                  [c for c in df_mes_actual.columns if c not in ['ID_CONCILIACION', 'Hoja_Origen']]
                     df_mes_actual_export = df_mes_actual[cols_orden]
@@ -1157,16 +1201,16 @@ def generar_reporte_presentes_no_presentes_sire_sunat(df_sire_sunat, df_sire_bn,
                 else:
                     ws_tipo.cell(row=fila_inicio, column=1, value='No hay registros del mes actual.')
                     fila_inicio += 2
-               
-                # ---- Meses Anteriores ----
+                
                 if not df_meses_anteriores.empty:
+                    df_meses_anteriores = df_meses_anteriores.sort_values(by=df_meses_anteriores.columns[4], ascending=False)
                     ws_tipo.merge_cells(f'A{fila_inicio}:E{fila_inicio}')
-                    celda_titulo = ws_tipo.cell(row=fila_inicio, column=1, value=f'📅 MESES ANTERIORES - Total: {len(df_meses_anteriores)}')
-                    celda_titulo.font = Font(bold=True, size=12, color="FFFFFF")
-                    celda_titulo.fill = PatternFill(start_color="EF4444", end_color="EF4444", fill_type="solid")
-                    celda_titulo.alignment = Alignment(horizontal='center', vertical='center')
+                    celda_meses = ws_tipo.cell(row=fila_inicio, column=1, value=f'MESES ANTERIORES - Total: {len(df_meses_anteriores)}')
+                    celda_meses.font = Font(bold=True, size=12, color="FFFFFF")
+                    celda_meses.fill = PatternFill(start_color="EF4444", end_color="EF4444", fill_type="solid")
+                    celda_meses.alignment = Alignment(horizontal='center', vertical='center')
                     fila_inicio += 1
-                   
+                    
                     cols_orden = ['ID_CONCILIACION', 'Hoja_Origen'] + \
                                  [c for c in df_meses_anteriores.columns if c not in ['ID_CONCILIACION', 'Hoja_Origen']]
                     df_meses_anteriores_export = df_meses_anteriores[cols_orden]
@@ -1175,14 +1219,13 @@ def generar_reporte_presentes_no_presentes_sire_sunat(df_sire_sunat, df_sire_bn,
                     ws_tipo.cell(row=fila_inicio, column=1, value='No hay registros de meses anteriores.')
                     fila_inicio += 2
             else:
-                # Si no se pudo extraer mes, mostrar todo junto
                 ws_tipo.merge_cells(f'A{fila_inicio}:E{fila_inicio}')
-                celda_titulo = ws_tipo.cell(row=fila_inicio, column=1, value=f'❌ NO PRESENTES EN SIRE_BN (Total: {len(df_no_presentes)})')
+                celda_titulo = ws_tipo.cell(row=fila_inicio, column=1, value=f'NO PRESENTES EN SIRE_BN (Total: {len(df_no_presentes)})')
                 celda_titulo.font = Font(bold=True, size=12, color="FFFFFF")
                 celda_titulo.fill = PatternFill(start_color="EF4444", end_color="EF4444", fill_type="solid")
                 celda_titulo.alignment = Alignment(horizontal='center', vertical='center')
                 fila_inicio += 1
-               
+                
                 cols_orden = ['ID_CONCILIACION', 'Hoja_Origen'] + \
                              [c for c in df_no_presentes.columns if c not in ['ID_CONCILIACION', 'Hoja_Origen']]
                 df_no_presentes_export = df_no_presentes[cols_orden]
@@ -1191,7 +1234,5 @@ def generar_reporte_presentes_no_presentes_sire_sunat(df_sire_sunat, df_sire_bn,
             ws_tipo.cell(row=fila_inicio, column=1, value='No hay registros no presentes en SIRE_BN para este tipo.')
             fila_inicio += 2
 
-
     wb.save(ruta_salida)
     return ruta_salida
-
