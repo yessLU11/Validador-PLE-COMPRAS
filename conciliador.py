@@ -917,6 +917,7 @@ def generar_reporte_presentes_no_presentes_sire_sunat(df_sire_sunat, df_sire_bn,
         '46': 'No domiciliado',
         '53': 'Declaración de mensajería o courier',
         '87': 'Nota de crédito especial',
+        '88' : 'Nota de debito especial',
         'DESCONOCIDO': 'Tipo desconocido'
     }
 
