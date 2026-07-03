@@ -592,6 +592,9 @@ with tab_conciliacion:
     # ---------------------------------------------------------------------
     # BOTÓN 1: CONCILIACIÓN GENERAL
     # ---------------------------------------------------------------------
+    # ---------------------------------------------------------------------
+    # BOTÓN 1: CONCILIACIÓN GENERAL
+    # ---------------------------------------------------------------------
     if st.button("📊 Conciliación General", use_container_width=True, type="primary"):
         with st.spinner("Procesando archivos..."):
             try:
@@ -602,23 +605,19 @@ with tab_conciliacion:
                 with open(path2, "wb") as f:
                     f.write(archivo2.getbuffer())
 
-
                 df1 = leer_todas_hojas_conciliacion(path1, fila_inicio=fila1)
                 df2 = leer_todas_hojas_conciliacion(path2, fila_inicio=fila2)
-
 
                 st.session_state.df_conc1 = df1
                 st.session_state.df_conc2 = df2
                 st.session_state.nombre_conc1 = archivo1.name
                 st.session_state.nombre_conc2 = archivo2.name
 
-
                 resumen, solo1, solo2 = conciliar_archivos(
                     df1, df2,
                     nombre1=archivo1.name,
                     nombre2=archivo2.name
                 )
-
 
                 st.success("✅ Conciliación completada")
                 st.markdown("### Resumen")
@@ -629,7 +628,6 @@ with tab_conciliacion:
                 })
                 st.dataframe(df_resumen, use_container_width=True, hide_index=True)
 
-
                 nombre_salida = f"reportes/conciliacion_general_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
                 generar_reporte_conciliacion(
                     resumen, solo1, solo2,
@@ -637,7 +635,6 @@ with tab_conciliacion:
                     archivo1.name, archivo2.name,
                     nombre_salida
                 )
-
 
                 with open(nombre_salida, "rb") as f:
                     st.download_button(
@@ -648,16 +645,42 @@ with tab_conciliacion:
                         use_container_width=True
                     )
 
-
-                os.remove(path1)
-                os.remove(path2)
-
+                # ============================================================
+                # ELIMINAR ARCHIVOS TEMPORALES CON REINTENTOS
+                # ============================================================
+ 
+                import time
+                import gc
+                
+                def eliminar_con_reintentos(ruta, intentos=3, espera=0.5):
+                    """Intenta eliminar un archivo con varios reintentos."""
+                    for i in range(intentos):
+                        try:
+                            if os.path.exists(ruta):
+                                os.remove(ruta)
+                                return True
+                        except PermissionError:
+                            if i < intentos - 1:
+                                time.sleep(espera)
+                                continue
+                            else:
+                                print(f"No se pudo eliminar {ruta} después de {intentos} intentos")
+                    return False
+                
+                # Liberar memoria antes de eliminar
+                del df1
+                del df2
+                gc.collect()
+                time.sleep(0.3)
+                
+                # Eliminar archivos temporales
+                eliminar_con_reintentos(path1)
+                eliminar_con_reintentos(path2) 
 
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
                 import traceback
                 st.code(traceback.format_exc())
-
 
     st.markdown("---")
     st.markdown("### 📋 Reportes de Presencia")
@@ -903,7 +926,7 @@ with tab_info:
         st.markdown("""
         Cuando validas duplicados, se generan automáticamente:
        
-        #### 📊 Reporte Excel con 2 hojas:
+        #### Reporte Excel con 2 hojas:
        
         **1. Duplicados_Detalle**
         - Todas las filas duplicadas encontradas
@@ -919,7 +942,7 @@ with tab_info:
     with col2:
         st.markdown("### 🔐 Seguridad y almacenamiento")
         st.markdown("""
-        #### ✅ Características de seguridad:
+        #### Características de seguridad:
         - **Base de datos local**: SQLite guardada en tu computadora
         - **Sin conexión externa**: Los datos NO se envían a internet
         - **Privacidad total**: Todo queda en tu máquina
@@ -932,7 +955,7 @@ with tab_info:
    
     st.markdown("---")
    
-    st.markdown("### 📈 Flujo de trabajo recomendado")
+    st.markdown("### Flujo de trabajo recomendado")
     st.markdown("""
     ```
     1. INICIO
@@ -942,7 +965,7 @@ with tab_info:
     3. Validar duplicados
        ↓
     4. ¿Hay duplicados?
-       ├─ NO → Agregar al historial ✅
+       ├─ NO → Agregar al historial
        └─ SÍ → Descargar Excel, corregir, volver a paso 2
        ↓
     5. Mes agregado al historial
@@ -990,7 +1013,7 @@ with tab_info:
         st.markdown("""
         Cuando validas duplicados, se generan automáticamente:
        
-        #### 📊 Reporte Excel con 2 hojas:
+        #### Reporte Excel con 2 hojas:
        
         **1. Duplicados_Detalle**
         - Todas las filas duplicadas encontradas
@@ -1006,7 +1029,7 @@ with tab_info:
     with col2:
         st.markdown("### 🔐 Seguridad y almacenamiento")
         st.markdown("""
-        #### ✅ Características de seguridad:
+        #### Características de seguridad:
         - **Base de datos local**: SQLite guardada en tu computadora
         - **Sin conexión externa**: Los datos NO se envían a internet
         - **Privacidad total**: Todo queda en tu máquina
@@ -1020,7 +1043,7 @@ with tab_info:
     st.markdown("---")
    
     # Flujo de trabajo recomendado
-    st.markdown("### 📈 Flujo de trabajo recomendado")
+    st.markdown("### Flujo de trabajo recomendado")
     st.markdown("""
     ```
     1. INICIO
@@ -1030,7 +1053,7 @@ with tab_info:
     3. Validar duplicados
        ↓
     4. ¿Hay duplicados?
-       ├─ NO → Agregar al historial ✅
+       ├─ NO → Agregar al historial 
        └─ SÍ → Descargar Excel, corregir, volver a paso 2
        ↓
     5. Mes agregado al historial
@@ -1044,11 +1067,11 @@ with tab_info:
     # Métricas actuales del sistema
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("📦 Máx. meses en historial", f"{MESES_A_MANTENER} meses")
+        st.metric("Máx. meses en historial", f"{MESES_A_MANTENER} meses")
     with col2:
-        st.metric("🔄 Meses actuales", len(obtener_meses_existentes()))
+        st.metric("Meses actuales", len(obtener_meses_existentes()))
     with col3:
-        st.metric("💾 Base de datos", "SQLite Local")
+        st.metric("Base de datos", "SQLite Local")
    
     st.markdown("</div>", unsafe_allow_html=True)
 
