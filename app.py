@@ -332,11 +332,11 @@ with tab_validar:
                 # CON duplicados - mostrar resumen y detalle
                 # 1. Mostrar resumen (agrupado por mes y tipo comprobante)
                 if st.session_state.resumen_df is not None and not st.session_state.resumen_df.empty:
-                    st.markdown("### 📈 Resumen de duplicados")
+                    st.markdown("### Resumen de duplicados")
                     st.dataframe(st.session_state.resumen_df, use_container_width=True, hide_index=True)
                
                 # 2. Mostrar detalle (primeros 20 registros)
-                st.markdown("### 📋 Detalle de duplicados")
+                st.markdown("### Detalle de duplicados")
                 st.dataframe(st.session_state.duplicados.head(20), use_container_width=True)
                 if len(st.session_state.duplicados) > 20:
                     st.caption(f"Mostrando 20 de {len(st.session_state.duplicados)} duplicados. Descarga el Excel para ver todos.")
@@ -360,7 +360,7 @@ with tab_validar:
             # Este sirve para agregar el mes al historial incluso si tiene duplicados, asumiendo que el usuario ya revisó el reporte y decidió proceder.
             if st.session_state.duplicados is not None:
                 st.markdown('<div class="card">', unsafe_allow_html=True)
-                if st.button("✅ CONFIRMAR Y AGREGAR AL HISTORIAL", use_container_width=True , type="primary"):
+                if st.button(" CONFIRMAR Y AGREGAR AL HISTORIAL", use_container_width=True , type="primary"):
                     try:
                         # Intentar agregar el mes a la BD
                         exito, mes_eliminado = agregar_mes(
@@ -424,7 +424,7 @@ with tab_duplicados_internos:
             f.write(archivo_interno.getbuffer())
        
         # Leer el archivo
-        with st.spinner("📖 Leyendo archivo Excel..."):
+        with st.spinner(" Leyendo archivo Excel..."):
             try:
                 df_raw = leer_excel_todas_hojas(temp_path_interno)
                 st.session_state.df_interno_raw = df_raw
@@ -440,7 +440,7 @@ with tab_duplicados_internos:
         st.markdown("### 🔍 Analizar duplicados")
        
         if st.button("🔍 DETECTAR DUPLICADOS INTERNOS", use_container_width=True, type="primary"):
-            with st.spinner("🔄 Detectando duplicados..."):
+            with st.spinner(" Detectando duplicados..."):
                 try:
                     # Detectar duplicados
                     df_dups, auditoria = detectar_duplicados_internos(st.session_state.df_interno_raw)
@@ -459,7 +459,7 @@ with tab_duplicados_internos:
         # Mostrar resultados
         if st.session_state.df_interno_duplicados is not None:
             st.markdown("---")
-            st.markdown("### 📊 Resultados")
+            st.markdown("###  Resultados")
            
             # Auditoría
             if st.session_state.auditoria_interna:
@@ -494,12 +494,12 @@ with tab_duplicados_internos:
                 st.dataframe(df_mostrar, use_container_width=True, hide_index=True)
                
                 if len(st.session_state.df_interno_duplicados) > 20:
-                    st.caption(f"📋 Mostrando 20 de {len(st.session_state.df_interno_duplicados)} duplicados. Descarga el Excel para ver todos.")
+                    st.caption(f" Mostrando 20 de {len(st.session_state.df_interno_duplicados)} duplicados. Descarga el Excel para ver todos.")
                
                 # Botón para generar reporte
                 st.markdown("---")
                 if st.button("📥 Generar Reporte Excel", use_container_width=True, type="primary"):
-                    with st.spinner("⏳ Generando reporte Excel..."):
+                    with st.spinner(" Generando reporte Excel..."):
                         try:
                             # Generar nombre de salida
                             nombre_base = os.path.splitext(st.session_state.archivo_interno_nombre)[0]
@@ -595,7 +595,7 @@ with tab_conciliacion:
     # ---------------------------------------------------------------------
     # BOTÓN 1: CONCILIACIÓN GENERAL
     # ---------------------------------------------------------------------
-    if st.button("📊 Conciliación General", use_container_width=True, type="primary"):
+    if st.button(" Conciliación General", use_container_width=True, type="primary"):
         with st.spinner("Procesando archivos..."):
             try:
                 path1 = f"uploads/conc_{archivo1.name}"
@@ -868,7 +868,7 @@ with tab_instrucciones:
         3. **Excel**: Botón para descargar el reporte completo con TODOS los duplicados
        
         ### Decisiones
-        - **Sin duplicados**: Presiona **"✅ CONFIRMAR Y AGREGAR AL HISTORIAL"**
+        - **Sin duplicados**: Presiona **" CONFIRMAR Y AGREGAR AL HISTORIAL"**
         - **Con duplicados**:
           - Descarga el Excel para ver todos
           - Ajusta tu archivo original (elimina registros duplicados)
@@ -879,7 +879,7 @@ with tab_instrucciones:
     with st.expander("🟢 PASO 5: Agregar al historial", expanded=False):
         st.markdown("""
         ### Confirmar y agregar
-        1. Una vez revisado el resultado, presiona **"✅ CONFIRMAR Y AGREGAR AL HISTORIAL"**
+        1. Una vez revisado el resultado, presiona **" CONFIRMAR Y AGREGAR AL HISTORIAL"**
         2. El sistema guardará todos los registros en la base de datos
        
         ### Gestión automática
@@ -922,7 +922,7 @@ with tab_info:
     col1, col2 = st.columns(2)
    
     with col1:
-        st.markdown("### 📊 Resultados generados")
+        st.markdown("###  Resultados generados")
         st.markdown("""
         Cuando validas duplicados, se generan automáticamente:
        
@@ -1009,7 +1009,7 @@ with tab_info:
     col1, col2 = st.columns(2)
    
     with col1:
-        st.markdown("### 📊 Resultados generados")
+        st.markdown("###  Resultados generados")
         st.markdown("""
         Cuando validas duplicados, se generan automáticamente:
        

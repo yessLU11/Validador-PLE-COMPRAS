@@ -689,9 +689,9 @@ def generar_reporte_presentes_no_presentes(df_sire_sunat, df_sire_bn, nombre_sir
     fila_descripcion = fila_actual + 3
 
     descripcion = [
-        "DESCRIPCIÓN DEL REPORTE:",
-        "• Coincidencia (%): Porcentaje de registros que están en ambos sistemas.",
-        "• No coincidencia (%): Porcentaje de registros que faltan en uno de los sistemas.",
+        "DESCRIPCIÓN DEL REPORTE: Coincidencia (%): Porcentaje de registros que están en ambos sistemas. No coincidencia (%): Porcentaje de registros que faltan en uno de los sistemas.",
+        "• Agregar Grafico circular para visualizar la proporción de registros presentes y no presentes.",
+        "• Agregar Grafico de barras para comparar la cantidad de registros por tipo de documento.",
     ]
     
     for i, linea in enumerate(descripcion):
@@ -1047,11 +1047,11 @@ def generar_reporte_presentes_no_presentes_sire_sunat(df_sire_sunat, df_sire_bn,
     # ---- DESCRIPCIÓN EXPLICATIVA ----
     fila_descripcion = fila_actual + 3
 
+
     descripcion = [
-        "DESCRIPCIÓN DEL REPORTE:",
-        "Este reporte compara los comprobantes registrados en SIRE_SUNAT y SIRE_BN.",
-        "• Coincidencia (%): Porcentaje de registros que están en ambos sistemas.",
-        "• No coincidencia (%): Porcentaje de registros que faltan en uno de los sistemas.",
+        "DESCRIPCIÓN DEL REPORTE: Coincidencia (%): Porcentaje de registros que están en ambos sistemas. No coincidencia (%): Porcentaje de registros que faltan en uno de los sistemas.",
+        "• Agregar Grafico circular para visualizar la proporción de registros presentes y no presentes.",
+        "• Agregar Grafico de barras para comparar la cantidad de registros por tipo de documento.",
     ]
     
     for i, linea in enumerate(descripcion):
