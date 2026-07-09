@@ -1,430 +1,313 @@
-# 📊 Validador PLE Compras v2.2
+# 📊 PLE COMPRAS
 
-## 📌 Descripción General
+Una aplicación web robusta para validación, auditoría y conciliación de archivos PLE (Programa de Libros Electrónicos) de compras según la normativa SUNAT de Perú.
 
-Sistema completo de validación de archivos PLE de compras con **dos modos principales**:
+## 🎯 Características Principales
 
-1. **🔍 Duplicados Internos** (v2.2): Detecta duplicados dentro de un mismo archivo Excel
-2. **📊 Duplicados Históricos**: Compara un nuevo mes contra los últimos 12 meses en la base de datos
+- **Detección de Duplicados**: Identifica registros duplicados dentro del mismo archivo y entre meses
+- **Auditoría Interna**: Valida consistencia e integridad de datos en archivos PLE
+- **Conciliación de Archivos**: Compara dos archivos PLE para identificar discrepancias
+- **Reconciliación SIRE-SUNAT**: Valida datos contra registros SIRE de SUNAT
+- **Histórico de 12 Meses**: Mantiene base de datos con últimos 12 meses para comparativas
+- **Reportes Profesionales**: Genera reportes en Excel con formato y validaciones
 
-Este proyecto es una herramienta profesional para validar archivos PLE de compras en Excel, detectando registros duplicados y generando reportes detallados.
+## 🚀 Inicio Rápido
 
----
+### Requisitos Previos
 
-## 🎯 Características principales
+- Python 3.8+
+- pip (gestor de paquetes de Python)
 
-### ✅ Duplicados Internos (NUEVO v2.2)
-- Lee **múltiples hojas** del archivo Excel
-- Detecta duplicados dentro del mismo archivo comparando **6 columnas clave** (F, G, H, I, L, Y)
-- Genera reporte Excel con **3 hojas**:
-  - Duplicados_Detalle
-  - Auditoria_Resumen
-  - Resumen_por_Hoja
-- Proporciona trazabilidad completa (hoja origen, número de fila, etc.)
-- Sin necesidad de base de datos (análisis independiente)
+### Instalación
 
-### ✅ Duplicados Históricos (Funcionalidad original)
-- Lee y normaliza archivos PLE con las hojas `8.1` y `PROGRAMAS SOCIALES`
-- Extrae columnas clave para detectar duplicados
-- Guarda registros en base de datos SQLite rotativa (últimos 12 meses)
-- Compara el nuevo mes con el histórico
-- Genera informes de posibles duplicados
-- Permite descargar reportes en formato Excel
-
----
-
-## 📂 Estructura del proyecto
-
-### 📁 Módulos principales
-
-| Archivo | Descripción |
-|---------|-------------|
-| `app.py` | Interfaz Streamlit principal con 4 pestañas |
-| `config.py` | Configuración de columnas, nombres de hojas, parámetros |
-| `excel_reader.py` | Lectura y normalización de archivos Excel |
-| `database.py` | Gestión de BD SQLite (creación, inserción, histórico) |
-| `validator.py` | Comparación de meses y detección de duplicados históricos |
-| `report_generator.py` | Generación de reportes Excel de duplicados históricos |
-
-### 🆕 Módulos nuevos (v2.2)
-
-| Archivo | Tamaño | Descripción |
-|---------|--------|-------------|
-| `duplicate_detector_internal.py` | 8.2 KB | Lectura y detección de duplicados internos |
-| `duplicate_report_generator_internal.py` | 8.8 KB | Generación de reportes profesionales |
-
-### 📂 Carpetas
-
-| Carpeta | Contenido |
-|---------|----------|
-| `data/` | Base de datos SQLite (`ple_history.db`) |
-| `reportes/` | Reportes generados |
-| `uploads/` | Archivos temporales de Streamlit |
-
----
-
-## 🚀 Instalación
-
-### Paso 1: Crear entorno virtual
-
+1. **Clonar el repositorio**
 ```bash
-python -m venv .venv
+git clone https://github.com/yessLU11/Validador-PLE-COMPRAS.git
+cd Validador-PLE-COMPRAS
 ```
 
-### Paso 2: Activar entorno virtual
-
-**Windows PowerShell:**
-```powershell
-.\.venv\Scripts\Activate.ps1
-```
-
-**Windows CMD:**
-```cmd
-.\.venv\Scripts\activate.bat
-```
-
-**Linux/Mac:**
+2. **Crear un entorno virtual (recomendado)**
 ```bash
-source .venv/bin/activate
+python -m venv venv
+# En Windows:
+venv\Scripts\activate
+# En Linux/Mac:
+source venv/bin/activate
 ```
 
-### Paso 3: Instalar dependencias
-
+3. **Instalar dependencias**
 ```bash
 pip install -r requirements.txt
 ```
 
----
-
-## 💻 Uso
-
-### Iniciar la aplicación
+### Ejecutar la Aplicación
 
 ```bash
 streamlit run app.py
 ```
 
-La aplicación abrirá en `http://localhost:8501` con 4 pestañas:
+La aplicación se abrirá en `http://localhost:8501`
 
-1. **📊 Validación** - Validar duplicados históricos (original)
-2. **🔍 Duplicados Internos** - Buscar duplicados dentro del archivo (NUEVO)
-3. **📖 Instrucciones** - Guía de uso
-4. **ℹ️ Información** - Detalles del sistema
-
----
-
-## 🔍 Modo 1: Duplicados Internos (NUEVO)
-
-### ¿Qué detecta?
-
-Registros con **exactamente los mismos valores** en 6 columnas clave:
-
-| Columna | Contenido |
-|---------|-----------|
-| **F** | Fecha de Vencimiento o Fecha de Pago |
-| **G** | Tipo de Comprobante de Pago o Documento |
-| **H** | Serie del comprobante |
-| **I** | Año de emisión |
-| **L** | Tipo de Documento de Identidad del proveedor |
-| **Y** | Importe total de las adquisiciones |
-
-### Paso a paso
-
-1. **Abrir pestaña**: Selecciona "🔍 Duplicados Internos"
-2. **Cargar archivo**: Sube el Excel `.xlsx` que deseas validar
-3. **Detectar**: Haz clic en "🔍 DETECTAR DUPLICADOS INTERNOS"
-4. **Revisar resultados**:
-   - Tabla resumen con estadísticas
-   - Duplicados por hoja
-   - Primeros registros encontrados
-5. **Generar reporte**: Clic en "📥 Generar Reporte Excel"
-6. **Descargar**: Descarga el archivo `duplicados_NOMBRE.xlsx`
-7. **Auditoría** (opcional): Expande para ver detalles técnicos
-
-### Reporte generado
-
-Archivo: `duplicados_NOMBRE_ORIGINAL.xlsx`
-
-**Hoja 1: Duplicados_Detalle**
-- Todos los registros duplicados con TODAS sus columnas
-- Columnas: Hoja Origen, Fila Original, + todas las columnas del Excel original
-
-**Hoja 2: Auditoria_Resumen**
-- Total de filas leídas
-- Total de duplicados encontrados
-- Cantidad de grupos únicos
-- Fecha de procesamiento
-
-**Hoja 3: Resumen_por_Hoja**
-- Nombre de la hoja
-- Cantidad de duplicados por hoja
-
-### Ejemplo de duplicado
+## 📁 Estructura del Proyecto
 
 ```
-Registro A: 2025-03-02 | Factura | 001 | 2025 | DNI | 1000.00
-Registro B: 2025-03-02 | Factura | 001 | 2025 | DNI | 1000.00
-         ↑         ↑        ↑      ↑     ↑        ↑
-        F         G        H      I     L        Y
-             → DUPLICADO DETECTADO ←
+Validador-PLE-COMPRAS/
+├── app.py                              # Aplicación principal (Streamlit)
+├── config.py                           # Configuración de parámetros
+├── validator.py                        # Lógica de comparación y detección de duplicados
+├── conciliador.py                      # Lógica de conciliación de archivos
+├── duplicate_detector_internal.py      # Detección de duplicados internos
+├── duplicate_report_generator_internal.py # Generador de reportes de duplicados
+├── database.py                         # Gestión de base de datos SQLite
+├── excel_reader.py                     # Lectura de archivos Excel
+├── report_generator.py                 # Generación de reportes profesionales
+├── requirements.txt                    # Dependencias del proyecto
+├── data/                               # Carpeta para almacenamiento de datos
+├── uploads/                            # Carpeta para archivos cargados temporalmente
+├── reportes/                           # Carpeta de reportes generados
+└── README.md                           # Este archivo
 ```
 
----
+## 🔧 Funcionalidades Detalladas
 
-## 📊 Modo 2: Duplicados Históricos (Original)
+### 1. Validación de Duplicados
 
-### Paso a paso
+**¿Qué hace?**
+- Compara datos del mes actual con archivos de meses anteriores
+- Detecta registros que ya existen en la base de datos histórica
+- Identifica duplicados dentro del mismo archivo
 
-1. **Abrir pestaña**: Selecciona "📊 Validación"
-2. **Subir archivo**: Archivo con nombre `PLE_COMPRAS_MMYYYY.xlsx`
-   - Ejemplo: `PLE_COMPRAS_032025.xlsx`
-   - MMYYYY = mes y año (032025 = marzo 2025)
-3. **Validar**: Sistema busca duplicados vs histórico
-4. **Revisar resultados**: 
-   - Resumen de duplicados encontrados
-   - Tabla detallada de coincidencias
-5. **Descargar reporte**: Si hay duplicados
-6. **Confirmar**: Si todo está correcto, agrega el mes al historial
+**¿Cómo funciona?**
+- Utiliza merge (inner join) en columnas clave definidas en `config.py`
+- Compara: fecha emisión, tipo comprobante, serie, número, RUC proveedor, razón social, montos
+- Genera reporte detallado con información de meses duplicados
 
-### Historial rotativo
+**Columnas Clave para Comparación:**
+```python
+- fecha_emision
+- tipo_comprobante
+- serie_comprobante
+- numero_comprobante
+- ruc_proveedor
+- razon_social
+- base_imponible
+- igv
+- importe_total
+```
 
-- Mantiene últimos **12 meses**
-- Al agregar mes 13, elimina automáticamente el más antiguo
-- Base de datos SQLite en `data/ple_history.db`
+### 2. Auditoría Interna
 
----
+**¿Qué hace?**
+- Valida la consistencia e integridad de datos dentro de un archivo
+- Detecta duplicados internos antes de cargar en base de datos
+- Identifica registros problemáticos
 
-## 🔍 Validaciones y Normalizaciones
+**¿Cómo funciona?**
+- Lectura de todas las hojas del archivo Excel
+- Normalización de datos (tipos de documentos, formatos, etc.)
+- Análisis de duplicados usando columnas identificadoras
 
-### Ambos modos aplican
+### 3. Conciliación de Archivos
 
-1. **Espacios**: Se eliminan al inicio y final
-2. **Mayúsculas**: Se normalizan para comparación
-3. **Fechas**: Formato YYYY-MM-DD
-4. **Valores nulos**: Se tratan como cadenas vacías
-5. **Datos numéricos**: Se tratan como strings para consistencia
+**¿Qué hace?**
+- Compara dos archivos PLE completos
+- Identifica registros presentes en uno pero no en otro
+- Genera reportes de discrepancias
 
----
+**¿Cómo funciona?**
+- Lee ambos archivos y normaliza sus datos
+- Crea IDs únicos basados en: tipo_comprobante + serie + número
+- Compara sets de registros
+- Genera reporte con registros no coincidentes
 
-## 📋 Validaciones adicionales
+### 4. Reconciliación SIRE-SUNAT
 
-### Validación de archivo
-- ✅ Nombre debe contener MMYYYY
-- ✅ Formato debe ser `.xlsx`
-- ✅ Debe tener datos
+**¿Qué hace?**
+- Valida datos PLE contra registros SIRE de SUNAT
+- Identifica discrepancias en montos y datos de operaciones
+- Genera reporte de inconsistencias
 
-### Validación de BD
-- ✅ Hojas necesarias existen
-- ✅ Columnas esperadas presentes
-- ✅ Datos dentro de rangos especificados
+## 📊 Configuración (config.py)
 
----
-
-## 🛠️ Uso Programático
-
-### Ejemplo: Detectar duplicados internos
+Modifica los siguientes parámetros según tus necesidades:
 
 ```python
-from duplicate_detector_internal import leer_excel_todas_hojas, detectar_duplicados_internos
-from duplicate_report_generator_internal import generar_reporte_duplicados_interno
+# Columnas clave para comparación
+COLUMNAS_CLAVE = [
+    "fecha_emision", "tipo_comprobante", "serie_comprobante",
+    "numero_comprobante", "ruc_proveedor", "razon_social",
+    "base_imponible", "igv", "importe_total"
+]
 
-# 1. Leer Excel (todas las hojas)
-df_raw = leer_excel_todas_hojas("archivo.xlsx")
+# Hojas del archivo Excel a procesar
+HOJA_PRINCIPAL = "8.1"
+HOJA_SOCIALES = "Programas Sociales"
 
-# 2. Detectar duplicados
-df_duplicados, auditoria = detectar_duplicados_internos(df_raw)
+# Filas de inicio de datos
+FILA_INICIO_PRINCIPAL = 8
+FILA_INICIO_SOCIALES = 1
 
-# 3. Generar reporte
-generar_reporte_duplicados_interno(
-    df_raw,
-    df_duplicados,
-    auditoria,
-    "duplicados_salida.xlsx",
-    "archivo.xlsx"
-)
+# Meses de histórico a mantener
+MESES_A_MANTENER = 12
 ```
 
-### Ejemplo: Validar histórico
+## 💾 Base de Datos
+
+La aplicación utiliza SQLite para almacenar:
+- Registros de todos los meses cargados
+- Metadatos (fecha carga, período, hoja origen)
+- Histórico completo para comparativas
+
+**Archivo de base de datos:** `data/database.db`
+
+### Operaciones Disponibles
 
 ```python
-from database import cargar_historico_completo
-from validator import detectar_duplicados
-import pandas as pd
+# Inicializar base de datos
+init_db()
 
-# Cargar histórico
-df_historico = cargar_historico_completo()
+# Obtener meses existentes
+obtener_meses_existentes()
 
-# Cargar nuevo mes (Excel)
-df_nuevo = pd.read_excel("PLE_COMPRAS_032025.xlsx", sheet_name="8.1")
+# Agregar nuevo mes
+agregar_mes(df, periodo, mes_archivo)
 
-# Detectar duplicados
-duplicados = detectar_duplicados(df_nuevo, df_historico)
+# Cargar histórico completo
+cargar_historico_completo(excluir_mes=None)
 
-# Usar resultados
-print(f"Duplicados encontrados: {len(duplicados)}")
+# Eliminar último mes cargado
+eliminar_ultimo_mes()
+
+# Eliminar toda la base de datos
+eliminar_toda_base_datos()
 ```
 
----
+## 📝 Formato de Archivos
 
-## 📦 Dependencias
+### Archivo PLE Compras Esperado
 
-Todas las dependencias ya están en `requirements.txt`:
+El archivo Excel debe contener:
+- **Hoja "8.1"**: Registros de compras principales (a partir de fila 8)
+- **Hoja "Programas Sociales"**: Compras de programas sociales (a partir de fila 1)
 
-```
-pandas>=1.3.0          # Manipulación de datos
-openpyxl>=3.7.0        # Lectura/escritura Excel
-streamlit>=1.5.0       # Framework web
-```
+**Columnas Requeridas:**
+- B: Período (AAAAMM00)
+- C: Código Único de la Operación (CUO)
+- E: Fecha de emisión
+- G: Tipo de comprobante
+- H: Serie del comprobante
+- J: Número del comprobante
+- M: RUC del proveedor
+- N: Razón social del proveedor
+- Q: Base imponible
+- R: IGV
+- Y: Importe total
 
-**Nota**: No se agregaron dependencias nuevas en v2.2
+## 🎨 Interfaz Streamlit
 
----
+La aplicación incluye:
+- **Sidebar**: Navegación entre funcionalidades principales
+- **Carga de Archivos**: Interface para subir archivos PLE
+- **Gestión de Base de Datos**: Ver, agregar, eliminar meses
+- **Generación de Reportes**: Descargar reportes en Excel
+- **Visualización de Datos**: Tablas interactivas con resultados
 
-## 📊 Columnas clave utilizadas
+### Secciones Disponibles
 
-El sistema trabaja con las siguientes columnas del PLE de compras:
+1. **Cargar Nuevo Mes**: Sube y procesa un archivo PLE
+2. **Detectar Duplicados**: Compara mes actual con histórico
+3. **Auditoría Interna**: Valida consistencia del archivo
+4. **Conciliación**: Compara dos archivos PLE
+5. **Gestión BD**: Visualiza y gestiona datos en base de datos
 
-| Col | Letra | Descripción |
-|-----|-------|-------------|
-| 1 | A | RUC |
-| 2 | B | Período |
-| 3 | C | Tipo de comprobante |
-| 4 | D | Serie |
-| 5 | E | Número |
-| **6** | **F** | **Fecha Vencimiento/Pago** ⭐ |
-| **7** | **G** | **Tipo Comprobante Pago** ⭐ |
-| **8** | **H** | **Serie Comprobante** ⭐ |
-| **9** | **I** | **Año de emisión** ⭐ |
-| 10 | J | ... |
-| **11** | **L** | **Tipo Doc. Identidad Proveedor** ⭐ |
-| ... | ... | ... |
-| **25** | **Y** | **Importe Total** ⭐ |
+## 📊 Reportes Generados
 
-⭐ = Columnas usadas para detectar duplicados
+### Tipos de Reportes
 
----
+1. **Reporte de Duplicados**: 
+   - Registros duplicados entre meses
+   - Información de meses donde aparecen
 
-## 🎯 Características especiales (v2.2)
+2. **Reporte de Auditoría Interna**:
+   - Duplicados dentro del mismo archivo
+   - Problemas de integridad de datos
 
-✅ **Lectura flexible**: Primera hoja desde fila 8, otras desde fila 1
-✅ **Múltiples hojas**: Lee TODAS las hojas, no limita a 2
-✅ **Estilos profesionales**: Colores, bordes, alineamiento automático
-✅ **Nombres automáticos**: `duplicados_NOMBRE_ORIGINAL.xlsx`
-✅ **Auditoría completa**: Reporte detallado en Excel + texto
-✅ **Interfaz intuitiva**: 100% integrado en Streamlit
-✅ **Sin dependencias nuevas**: Usa librerías existentes
-✅ **Robusto**: Manejo de errores completo
-✅ **Trazabilidad**: Hoja origen + número de fila original
+3. **Reporte de Conciliación**:
+   - Registros presentes/no presentes en cada archivo
+   - Análisis de discrepancias
 
----
+4. **Reporte SIRE-SUNAT**:
+   - Validación contra registros SUNAT
+   - Inconsistencias identificadas
 
-## ⚡ Mejoras de mantenibilidad (v2.2)
+### Formato de Reportes
 
-El código ha sido mejorado con:
+- **Formato**: Excel (.xlsx)
+- **Estilos**: Colores, bordes, alineación profesional
+- **Filtros**: Activados para facilitar análisis
+- **Ubicación**: Carpeta `reportes/`
 
-✅ **+500 líneas de comentarios** explicativos
-✅ **Estructura lógica clara** con secciones definidas
-✅ **Manejo robusto de errores** (try-except en operaciones críticas)
-✅ **Validaciones completas** en entrada de datos
-✅ **Confirmaciones** en operaciones destructivas
-✅ **Type hints** en funciones
-✅ **Documentación exhaustiva** inline
-
----
-
-## 🧪 Testing
-
-La funcionalidad de duplicados internos incluye testing automático:
+## 🔌 Dependencias Principales
 
 ```
-✅ Archivo de prueba creado con 14 registros
-✅ Leído correctamente: múltiples hojas
-✅ Detectados duplicados correctamente
-✅ Reporte Excel generado sin errores
-✅ Auditoría generada sin problemas
+Flask-SocketIO==5.5.1
+Streamlit==1.57.0
+pandas==2.2.2
+openpyxl==3.1.5
+SQLAlchemy==2.0.49
+reportlab==4.4.4
 ```
 
----
+Ver `requirements.txt` para lista completa de dependencias.
 
-## 📝 Notas importantes
+## 🛠️ Desarrollo
 
-- ✅ El proyecto mantiene un historial rodante de hasta 12 meses
-- ✅ Si existen 12 meses, al agregar uno nuevo se elimina el más antiguo
-- ✅ El nombre del archivo debe contener `MMYYYY` (ej: 032025)
-- ✅ Los duplicados internos se analizan **sin base de datos**
-- ✅ El análisis histórico requiere **base de datos SQLite**
-- ✅ Ambos modos generan reportes Excel profesionales
+### Extensiones Posibles
 
----
+1. Agregar validación de impuestos
+2. Integración con API SUNAT
+3. Exportación a otros formatos (CSV, JSON)
+4. Dashboard de análisis avanzado
+5. Validación de reglas de negocio personalizadas
 
-## 🆘 Solución de problemas
+### Contribuciones
 
-| Problema | Solución |
-|----------|----------|
-| ❌ "No hay datos en el archivo" | Verifica que sea `.xlsx` y tenga datos desde las filas especificadas |
-| ❌ Error al leer hojas | Revisa que las hojas tengan datos desde fila 8 (primera) o fila 1 (otras) |
-| ❌ "Nombre debe incluir MMYYYY" | Usa formato `PLE_COMPRAS_MMYYYY.xlsx` para histórico |
-| ❌ Reporte no genera | Verifica que haya duplicados detectados |
-| ❌ Interfaz no carga | Asegúrate de tener Streamlit >= 1.5 instalado |
-| ❌ Error de BD | Ejecuta `reiniciar_bd.bat` para reiniciar la base de datos |
+Las contribuciones son bienvenidas. Por favor:
+1. Fork el proyecto
+2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
+3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
+4. Push a la rama (`git push origin feature/AmazingFeature`)
+5. Abre un Pull Request
 
----
+## 📄 Licencia
 
-## 📋 Checklist - ¿Qué se incluye?
+Este proyecto está bajo licencia MIT. Ver archivo `LICENSE` para más detalles.
 
-### Funcionalidad
-- ✅ Lectura de múltiples hojas Excel
-- ✅ Detección de duplicados internos (6 columnas)
-- ✅ Comparación con histórico (12 meses)
-- ✅ Normalización de datos (espacios, mayúsculas, fechas)
-- ✅ Trazabilidad completa (hoja + fila original)
-- ✅ Generación de reportes profesionales
+## 👤 Autor
 
-### Interfaces
-- ✅ 4 pestañas principales en Streamlit
-- ✅ Sidebar con opciones de gestión
-- ✅ Visualización de resultados
-- ✅ Descarga de reportes
-- ✅ Auditoría detallada
+**Yessly Poma**
 
-### Documentación
-- ✅ README completo (este archivo)
-- ✅ Guía de uso: `NUEVA_FUNCIONALIDAD_DUPLICADOS_INTERNOS.md`
-- ✅ Documentación técnica: `RESUMEN_IMPLEMENTACION_V2.2.md`
-- ✅ Guía de cambios: `GUIA_CAMBIOS_DETALLADA.md`
-- ✅ Índice: `00_INDICE_CAMBIOS_V2.2.txt`
+## 📞 Soporte
 
-### Calidad
-- ✅ Manejo robusto de errores
-- ✅ Validaciones de entrada
-- ✅ Confirmaciones de operaciones destructivas
-- ✅ Type hints en funciones
-- ✅ Tests exitosos
-- ✅ Listo para producción
+Para reportar errores, sugerencias o preguntas:
+- Abre un issue en el repositorio
+- Contacta al equipo de desarrollo
+
+## 🔒 Privacidad y Seguridad
+
+- Los archivos cargados se procesan localmente
+- Los datos se almacenan en base de datos SQLite local
+- No se envía información a servidores externos
+- Recomendado usar en ambiente seguro con acceso restringido
+
+## 📚 Referencia de Normativa
+
+- **PLE (Programa de Libros Electrónicos)**: Regulado por SUNAT (Superintendencia Nacional de Aduanas y de Administración Tributaria)
+- **Formato**: Conforme a Resolución de Superintendencia SUNAT
+- **Validación**: Cumple estándares de formato y contenido SUNAT
 
 ---
 
-## 📞 Documentación adicional
-
-- **📖 Guía completa de duplicados internos**: `NUEVA_FUNCIONALIDAD_DUPLICADOS_INTERNOS.md`
-- **📊 Resumen técnico v2.2**: `RESUMEN_IMPLEMENTACION_V2.2.md`
-- **🛠️ Guía detallada de cambios**: `GUIA_CAMBIOS_DETALLADA.md`
-- **📚 Índice rápido**: `00_INDICE_CAMBIOS_V2.2.txt`
-
----
-
-## 🎉 Resumen ejecutivo
-
-Se ha implementado exitosamente una **nueva funcionalidad v2.2** que permite detectar automáticamente duplicados dentro de un mismo archivo Excel del PLE_COMPRAS, con trazabilidad completa y generación de reportes profesionales. La funcionalidad está completamente integrada en la interfaz Streamlit existente sin requerir cambios en la base de datos ni dependencias adicionales.
-
-El sistema ahora ofrece **dos modos complementarios** de análisis:
-1. **Análisis interno**: Duplicados dentro del mismo archivo (sin BD)
-2. **Análisis histórico**: Duplicados vs últimos 12 meses (con BD)
-
-**Estado**: ✅ **LISTO PARA PRODUCCIÓN v2.2**
-
----
-
-**Versión**: 2.2  
-**Última actualización**: 2025-06-02  
-**Desarrollado por**: YESS - Copilot
+**Versión**: 1.0.0  
+**Última actualización**: 2026-07-09  
+**Estado**: Producción ✅
