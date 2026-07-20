@@ -1,4 +1,5 @@
-# app.py - VERSIÓN DEFINITIVA SIN BUCLES Y CON ELIMINACIÓN FUNCIONAL
+# ============================================================================
+# PARTE 1: IMPORTS Y CONFIGURACIÓN INICIAL
 # ============================================================================
 # APLICACIÓN PRINCIPAL VALIDADOR PLE COMPRAS
 # ============================================================================
@@ -48,8 +49,9 @@ st.set_page_config(
 )
 
 # ============================================================================
-# INICIALIZACIÓN DE SESIÓN
+# PARTE 2: INICIALIZACIÓN DE SESIÓN Y FUNCIONES AUXILIARES
 # ============================================================================
+
 def init_session_state():
     defaults = {
         'df_nuevo': None,
@@ -72,8 +74,7 @@ def init_session_state():
         'fila_conc1': 1,
         'fila_conc2': 1,
         'mostrar_resumen_bd': False,
-        # Bandera para evitar ejecuciones múltiples
-        'mostrar_confirmacion_eliminar': False,  # <--- UNIFICADO
+        'mostrar_confirmacion_eliminar': False,
         '_batch_key': 'batch_uploader_default', 
         '_cargando_batch': False,
         '_eliminando_mes': False,
@@ -123,6 +124,10 @@ def limpiar_uploads():
         except PermissionError:
             pass
     return contador
+
+# ============================================================================
+# PARTE 3: CSS Y ENCABEZADO PRINCIPAL
+# ============================================================================
 
 # ============================================================================
 # CSS PERSONALIZADO
@@ -257,11 +262,9 @@ tab_validar, tab_duplicados_internos, tab_conciliacion, tab_instrucciones, tab_i
 ])
 
 # ============================================================================
-# SIDEBAR - PANEL DE CONTROL PRINCIPAL
+# PARTE 4: SIDEBAR - PANEL DE CONTROL PRINCIPAL
 # ============================================================================
-# ============================================================================
-# SIDEBAR - PANEL DE CONTROL PRINCIPAL (SOLO DOCUMENTOS Y AYUDA)
-# ============================================================================
+
 with st.sidebar:
     st.markdown('# <span style="color:white">📊 PLE COMPRAS</span>', unsafe_allow_html=True)
     st.markdown('### <span style="color:white">Validador de Duplicados</span>', unsafe_allow_html=True)
@@ -309,12 +312,13 @@ with st.sidebar:
         st.info("Ve a la pestaña '📖 ¿Cómo usar?' para ver la guía detallada.")
 
 # ============================================================================
-# PESTAÑA 1: VALIDACIÓN (CON TODOS LOS CONTROLES - SIN BUCLES)
+# PARTE 5: PESTAÑA 1 - VALIDACIÓN
 # ============================================================================
+
 with tab_validar:
-    # Título dentro de la pestaña
     st.markdown("## 🔎 Validador de Duplicados")
     st.markdown("Compara el archivo cargado con los últimos 12 meses almacenados.")
+    st.markdown("**Resumen:** Valida el mes cargado buscando duplicados exactos frente al historial (últimos 12 meses). **Estructura del archivo (.xlsx):** Debe incluir columnas que identifiquen un comprobante: periodo (AAAAMM00) o Fecha, CUO (si aplica), tipo_comprobante, serie, numero, ruc_proveedor (RUC), razon_social, base_imponible, igv y importe_total. Se leen todas las hojas: la hoja principal (habitualmente '8.1') comienza en la fila 8 y las hojas adicionales (ej. 'PROGRAMAS SOCIALES') en la fila 2.")
     
     # ============================================================
     # SECCIÓN: EVALUAR NUEVO MES (SOLO LECTURA)
@@ -414,7 +418,6 @@ with tab_validar:
             if st.button("❌ Descartar archivo", use_container_width=True):
                 descartar_archivo_cargado()
                 st.success("Archivo descartado. Puedes cargar otro.")
-                # ✅ SIN st.rerun() - Streamlit actualiza automáticamente
     
     # Mostrar resultados de validación
     if st.session_state.df_nuevo is not None and st.session_state.validacion_realizada:
@@ -488,7 +491,6 @@ with tab_validar:
                         st.success(f"✅ Mes {st.session_state.mes_nuevo} subido correctamente")
                     
                     descartar_archivo_cargado()
-                    # ✅ SIN st.rerun() - Streamlit actualiza automáticamente
                 except Exception as e:
                     st.error(f"❌ Error al subir mes: {str(e)}")
                 finally:
@@ -552,10 +554,8 @@ with tab_validar:
                     else:
                         st.error(mensaje)
                     
-                    # Cambiar la clave para limpiar el file_uploader
                     st.session_state._batch_key = f"batch_uploader_{int(time.time())}"
                     st.session_state._cargando_batch = False
-                    # ✅ SIN st.rerun() - Streamlit actualiza automáticamente
             else:
                 st.warning("Carga en proceso, por favor espera...")
     
@@ -571,7 +571,6 @@ with tab_validar:
             else:
                 st.info("Sin meses para eliminar")
             st.session_state._eliminando_mes = False
-            # ✅ SIN st.rerun() - Streamlit actualiza automáticamente
         else:
             st.info("Ya se está eliminando un mes, espera...")
     
@@ -592,13 +591,11 @@ with tab_validar:
                     st.session_state.resumen_df = None
                     st.session_state.reporte_path = None
                     st.success("✅ Base de datos eliminada correctamente")
-                    # ✅ SIN st.rerun() - Streamlit actualiza automáticamente
                 except Exception as e:
                     st.error(f"❌ Error al eliminar: {str(e)}")
         with col2:
             if st.button("Cancelar", key="btn_cancelar_eliminar_todo", use_container_width=True):
                 st.session_state['mostrar_confirmacion_eliminar'] = False
-                # ✅ SIN st.rerun() - Streamlit actualiza automáticamente
     
     # --- Botón: Ver resumen BD ---
     if st.button("📋 Ver resumen BD", use_container_width=True):
@@ -608,3 +605,823 @@ with tab_validar:
             st.write("Meses almacenados:", ", ".join(ordenar_meses(meses)))
         else:
             st.info("📭 Base de datos vacía")
+# ============================================================================
+# PARTE 6: PESTAÑA 2 - DUPLICADOS INTERNOS + PESTAÑA 3 - CONCILIACIÓN
+# ============================================================================
+
+# ============================================================================
+# PESTAÑA 2: DUPLICADOS INTERNOS
+# ============================================================================
+with tab_duplicados_internos:
+    st.markdown("## 🔍 Validador de Duplicados Internos")
+    st.markdown("Detecta registros duplicados dentro del mismo archivo Excel (todas las hojas).")
+    st.markdown("**Estructura recomendada (.xlsx):** Debe contener columnas mínimas para identificar comprobantes: tipo_comprobante, serie, numero, ruc_proveedor (RUC) e importe_total. Si su plantilla usa columnas por letra, H/J/M/Y suelen mapear a Serie/Numero/RUC/Importe. Lectura: primera hoja desde fila 8; hojas adicionales desde fila 2.")
+    st.markdown("**Cómo funciona:** Se cargan todas las hojas, se validan las columnas clave y se detectan grupos de registros duplicados. Se genera un reporte Excel descargable y una auditoría resumida para revisión rápida.")
+    st.markdown("Usa 'Generar Reporte' para obtener el Excel completo de duplicados y 'Limpiar resultados' para volver a cargar otro archivo.")
+    st.markdown("La auditoría detallada muestra duplicados por hoja y por grupos detectados.")
+    
+    # SECCIÓN: CARGAR ARCHIVO
+    st.markdown("---")
+    st.markdown("### 📂 Cargar archivo")
+    st.caption("Selecciona un archivo Excel para analizar duplicados internos.")
+    
+    archivo_interno = st.file_uploader(
+        "Selecciona un archivo Excel (.xlsx)",
+        type=["xlsx"],
+        key="file_uploader_interno",
+        help="El sistema leerá TODAS las hojas del archivo y detectará duplicados basándose en las columnas clave."
+    )
+    
+    if archivo_interno is not None:
+        nombre_archivo = archivo_interno.name
+        temp_path_interno = f"uploads/{nombre_archivo}_interno"
+        
+        with open(temp_path_interno, "wb") as f:
+            f.write(archivo_interno.getbuffer())
+        
+        with st.spinner("📖 Leyendo archivo Excel..."):
+            try:
+                df_raw = leer_excel_todas_hojas(temp_path_interno)
+                st.session_state.df_interno_raw = df_raw
+                st.session_state.archivo_interno_nombre = nombre_archivo
+                st.session_state.df_interno_duplicados = None
+                st.session_state.auditoria_interna = None
+                st.session_state.reporte_interno_path = None
+                
+                st.success(f"✅ Archivo cargado: **{nombre_archivo}**")
+                
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("📋 Total de hojas", df_raw['hoja_origen'].nunique() if not df_raw.empty else 0)
+                with col2:
+                    st.metric("📊 Total de registros", len(df_raw))
+                with col3:
+                    st.metric("📌 Columnas clave", "4 campos (H, J, M, Y)")
+                
+                if not df_raw.empty:
+                    hojas = df_raw['hoja_origen'].unique().tolist()
+                    st.caption(f"📄 Hojas procesadas: {', '.join(hojas)}")
+                
+            except Exception as e:
+                st.error(f"❌ Error al leer archivo: {str(e)}")
+                st.session_state.df_interno_raw = None
+                if os.path.exists(temp_path_interno):
+                    try:
+                        os.remove(temp_path_interno)
+                    except:
+                        pass
+    
+    if st.session_state.df_interno_raw is not None and not st.session_state.df_interno_raw.empty:
+        st.markdown("---")
+        st.markdown("### 🔍 Analizar duplicados")
+        st.caption("Detecta registros duplicados dentro del archivo basándose en las columnas clave.")
+        
+        if st.button("🔍 DETECTAR DUPLICADOS INTERNOS", use_container_width=True, type="primary"):
+            with st.spinner("🔄 Analizando duplicados en todas las hojas..."):
+                try:
+                    df_dups, auditoria = detectar_duplicados_internos(st.session_state.df_interno_raw)
+                    st.session_state.df_interno_duplicados = df_dups
+                    st.session_state.auditoria_interna = auditoria
+                    
+                    if df_dups.empty:
+                        st.success("✅ **¡Excelente!** No se encontraron duplicados en el archivo.")
+                        st.balloons()
+                    else:
+                        st.warning(f"⚠️ Se encontraron **{len(df_dups)} registros duplicados** en **{auditoria.get('grupos_duplicados', 0)}** grupos.")
+                        
+                        if len(df_dups) > 100:
+                            st.info(f"📊 Se encontraron {len(df_dups)} duplicados. Descarga el reporte Excel para ver todos los detalles.")
+                   
+                except Exception as e:
+                    st.error(f"❌ Error al detectar duplicados: {str(e)}")
+                    import traceback
+                    st.code(traceback.format_exc())
+        
+        if st.session_state.df_interno_duplicados is not None:
+            st.markdown("---")
+            st.markdown("### 📊 Resultados del análisis")
+            
+            if st.session_state.auditoria_interna:
+                auditoria = st.session_state.auditoria_interna
+                
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("📋 Total de filas", auditoria.get('total_filas', 0))
+                with col2:
+                    st.metric("⚠️ Duplicados", auditoria.get('total_duplicados', 0))
+                with col3:
+                    st.metric("📊 Grupos únicos", auditoria.get('grupos_duplicados', 0))
+                with col4:
+                    porcentaje = (auditoria.get('total_duplicados', 0) / auditoria.get('total_filas', 1)) * 100
+                    st.metric("📈 % Duplicados", f"{porcentaje:.1f}%")
+                
+                if auditoria.get('duplicados_por_hoja'):
+                    st.markdown("#### 📄 Duplicados por hoja")
+                    tabla_hojas = pd.DataFrame([
+                        {"Hoja": hoja, "Cantidad de duplicados": cantidad}
+                        for hoja, cantidad in auditoria['duplicados_por_hoja'].items()
+                    ])
+                    tabla_hojas = tabla_hojas.sort_values('Cantidad de duplicados', ascending=False)
+                    st.dataframe(tabla_hojas, use_container_width=True, hide_index=True)
+            
+            if not st.session_state.df_interno_duplicados.empty:
+                st.markdown("#### 📋 Registros duplicados encontrados")
+                
+                cols_mostrar = [col for col in st.session_state.df_interno_duplicados.columns
+                               if not (isinstance(col, str) and col.startswith("_"))]
+                
+                df_mostrar = st.session_state.df_interno_duplicados[cols_mostrar].head(20)
+                st.dataframe(df_mostrar, use_container_width=True, hide_index=True)
+                
+                if len(st.session_state.df_interno_duplicados) > 20:
+                    st.caption(f"📋 Mostrando 20 de {len(st.session_state.df_interno_duplicados)} duplicados. Descarga el reporte Excel para ver todos.")
+                
+                st.markdown("---")
+                col_btn1, col_btn2 = st.columns([2, 1])
+                with col_btn1:
+                    if st.button("📥 Generar Reporte Excel", use_container_width=True, type="primary"):
+                        with st.spinner("⏳ Generando reporte Excel..."):
+                            try:
+                                nombre_base = os.path.splitext(st.session_state.archivo_interno_nombre)[0]
+                                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                                nombre_salida = f"reportes/duplicados_internos_{nombre_base}_{timestamp}.xlsx"
+                                
+                                generar_reporte_duplicados_interno(
+                                    st.session_state.df_interno_raw,
+                                    st.session_state.df_interno_duplicados,
+                                    st.session_state.auditoria_interna,
+                                    nombre_salida,
+                                    st.session_state.archivo_interno_nombre
+                                )
+                                
+                                st.session_state.reporte_interno_path = nombre_salida
+                                st.success(f"✅ Reporte generado: **{os.path.basename(nombre_salida)}**")
+                               
+                            except Exception as e:
+                                st.error(f"❌ Error generando reporte: {str(e)}")
+                                import traceback
+                                st.code(traceback.format_exc())
+                
+                with col_btn2:
+                    if st.button("🔄 Limpiar resultados", use_container_width=True):
+                        st.session_state.df_interno_duplicados = None
+                        st.session_state.auditoria_interna = None
+                        st.session_state.reporte_interno_path = None
+                        st.rerun()
+            
+            if st.session_state.reporte_interno_path and os.path.exists(st.session_state.reporte_interno_path):
+                st.markdown("---")
+                with open(st.session_state.reporte_interno_path, "rb") as f:
+                    st.download_button(
+                        label="📥 Descargar Reporte Excel Completo",
+                        data=f,
+                        file_name=os.path.basename(st.session_state.reporte_interno_path),
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True,
+                        type="primary"
+                    )
+            
+            with st.expander("📋 Ver auditoría detallada"):
+                if st.session_state.auditoria_interna:
+                    texto_auditoria = generar_auditoria_duplicados(
+                        st.session_state.df_interno_duplicados,
+                        st.session_state.auditoria_interna
+                    )
+                    st.code(texto_auditoria, language="text")
+    
+    if st.session_state.get('df_interno_raw') is not None:
+        try:
+            for archivo in os.listdir("uploads"):
+                if archivo.endswith("_interno"):
+                    ruta = os.path.join("uploads", archivo)
+                    if os.path.exists(ruta):
+                        tiempo_mod = os.path.getmtime(ruta)
+                        if time.time() - tiempo_mod > 3600:
+                            os.remove(ruta)
+        except:
+            pass
+
+# ============================================================================
+# PESTAÑA 3: CONCILIACIÓN
+# ============================================================================
+with tab_conciliacion:
+    st.markdown("## 🔁 Conciliación de PLE Compras")
+    st.markdown("Compara dos archivos PLE Compras para identificar diferencias entre SIRE_SUNAT y SIRE_BN.")
+    st.markdown("**Estructura de los archivos a subir:** Ambos archivos (.xlsx) deben contener, como mínimo, columnas que identifiquen un comprobante: tipo_comprobante, serie, numero y ruc_proveedor (RUC). Si su plantilla tiene filas de encabezado adicionales, indique la fila de inicio. Se leerán todas las hojas y la comparación se realiza por la clave tipo+serie+numero+RUC.")
+    st.markdown("""
+        ### 📋 Requisitos del archivo
+        
+        | Columna | Letra | Campo |
+        |---------|-------|-------| 
+        | 7 | G | Tipo de Comprobante | 
+        | 8 | H | Serie | 
+        | 10 | J | Número | 
+        | 13 | M | RUC | 
+        
+        **Importante:** La conciliación se realiza usando la combinación: **Tipo + Serie + Número + RUC**
+        
+        **Fila de inicio:**
+        - `= 1` → Los datos comienzan en la FILA 1
+        - `= 2` → Los datos comienzan en la FILA 2 (si hay encabezados)
+        - `= 8` → Los datos comienzan en la FILA 8 (como en la hoja 8.1)
+    """)
+    
+    # SECCIÓN: CONFIGURACIÓN DE ARCHIVOS
+    st.markdown("---")
+    st.markdown("### 📂 Cargar archivos")
+    st.caption("Sube los dos archivos Excel y especifica la fila donde comienzan los datos.")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("#### 📄 Archivo 1 (SIRE_SUNAT)")
+        archivo1 = st.file_uploader(
+            "Selecciona archivo SIRE_SUNAT",
+            type=["xlsx"],
+            key="conc1",
+            help="Base de datos de SIRE_SUNAT (archivo maestro)"
+        )
+        fila1 = st.number_input(
+            "Fila de inicio (Archivo 1)",
+            min_value=1,
+            value=1,
+            step=1,
+            key="fila1",
+            help="Fila donde comienzan los datos (1-based)"
+        )
+    
+    with col2:
+        st.markdown("#### 📄 Archivo 2 (SIRE_BN)")
+        archivo2 = st.file_uploader(
+            "Selecciona archivo SIRE_BN",
+            type=["xlsx"],
+            key="conc2",
+            help="Archivo de SIRE_BN para comparar"
+        )
+        fila2 = st.number_input(
+            "Fila de inicio (Archivo 2)",
+            min_value=1,
+            value=1,
+            step=1,
+            key="fila2",
+            help="Fila donde comienzan los datos (1-based)"
+        )
+    
+    # INICIALIZACIÓN DE ESTADO
+    if "df_conc1" not in st.session_state:
+        st.session_state.df_conc1 = None
+        st.session_state.df_conc2 = None
+        st.session_state.nombre_conc1 = None
+        st.session_state.nombre_conc2 = None
+        st.session_state.fila_conc1 = 1
+        st.session_state.fila_conc2 = 1
+        st.session_state.conciliacion_realizada = False
+        st.session_state.resumen_conciliacion = None
+    
+    if archivo1 and archivo2:
+        if (st.session_state.nombre_conc1 != archivo1.name or
+            st.session_state.nombre_conc2 != archivo2.name or
+            st.session_state.fila_conc1 != fila1 or
+            st.session_state.fila_conc2 != fila2):
+            st.session_state.df_conc1 = None
+            st.session_state.df_conc2 = None
+            st.session_state.nombre_conc1 = archivo1.name
+            st.session_state.nombre_conc2 = archivo2.name
+            st.session_state.fila_conc1 = fila1
+            st.session_state.fila_conc2 = fila2
+            st.session_state.conciliacion_realizada = False
+            st.session_state.resumen_conciliacion = None
+    
+    # BOTÓN CONCILIACIÓN GENERAL
+    st.markdown("---")
+    
+    if archivo1 is None or archivo2 is None:
+        st.info("📭 Sube ambos archivos para realizar la conciliación.")
+    else:
+        if st.button("📊 Conciliación General", use_container_width=True, type="primary"):
+            with st.spinner("🔄 Procesando archivos..."):
+                try:
+                    path1 = f"uploads/conc_{archivo1.name}"
+                    path2 = f"uploads/conc_{archivo2.name}"
+                    
+                    with open(path1, "wb") as f:
+                        f.write(archivo1.getbuffer())
+                    with open(path2, "wb") as f:
+                        f.write(archivo2.getbuffer())
+                    
+                    df1 = leer_todas_hojas_conciliacion(path1, fila_inicio=fila1)
+                    df2 = leer_todas_hojas_conciliacion(path2, fila_inicio=fila2)
+                    
+                    st.session_state.df_conc1 = df1
+                    st.session_state.df_conc2 = df2
+                    st.session_state.nombre_conc1 = archivo1.name
+                    st.session_state.nombre_conc2 = archivo2.name
+                    
+                    resumen, solo1, solo2 = conciliar_archivos(
+                        df1, df2,
+                        nombre1=archivo1.name,
+                        nombre2=archivo2.name
+                    )
+                    
+                    st.session_state.resumen_conciliacion = resumen
+                    st.session_state.conciliacion_realizada = True
+                    
+                    st.success("✅ Conciliación completada con éxito")
+                    
+                    st.markdown("### 📊 Resumen de Conciliación")
+                    
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric(
+                            "📄 Total registros",
+                            f"{resumen['total_registros_1']:,} / {resumen['total_registros_2']:,}",
+                            help=f"{archivo1.name}: {resumen['total_registros_1']:,}\n{archivo2.name}: {resumen['total_registros_2']:,}"
+                        )
+                    with col2:
+                        st.metric(
+                            "✅ Registros en común",
+                            f"{resumen['comunes']:,}",
+                            help="Registros que coinciden en ambos archivos"
+                        )
+                    with col3:
+                        diferencia = resumen['diferencias_totales']
+                        st.metric(
+                            "⚠️ Diferencias totales",
+                            f"{diferencia:,}",
+                            delta="Revisar" if diferencia > 0 else "Sin diferencias",
+                            delta_color="inverse" if diferencia > 0 else "off"
+                        )
+                    
+                    st.markdown("#### Detalle por archivo")
+                    df_resumen = pd.DataFrame({
+                        "Concepto": [
+                            "Total registros (serie)",
+                            "IDs únicos",
+                            "Registros solo en este archivo",
+                            "Registros en común",
+                            "Diferencias totales"
+                        ],
+                        archivo1.name: [
+                            resumen['total_registros_1'],
+                            resumen['ids_unicos_1'],
+                            resumen['solo_en_1'],
+                            resumen['comunes'],
+                            resumen['diferencias_totales']
+                        ],
+                        archivo2.name: [
+                            resumen['total_registros_2'],
+                            resumen['ids_unicos_2'],
+                            resumen['solo_en_2'],
+                            resumen['comunes'],
+                            resumen['diferencias_totales']
+                        ]
+                    })
+                    st.dataframe(df_resumen, use_container_width=True, hide_index=True)
+                    
+                    nombre_salida = f"reportes/conciliacion_general_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+                    generar_reporte_conciliacion(
+                        resumen, solo1, solo2,
+                        df1, df2,
+                        archivo1.name, archivo2.name,
+                        nombre_salida
+                    )
+                    
+                    with open(nombre_salida, "rb") as f:
+                        st.download_button(
+                            label="📥 Descargar Reporte de Conciliación General",
+                            data=f,
+                            file_name=os.path.basename(nombre_salida),
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            use_container_width=True,
+                            type="primary"
+                        )
+                    
+                    def eliminar_con_reintentos(ruta, intentos=3, espera=0.5):
+                        for i in range(intentos):
+                            try:
+                                if os.path.exists(ruta):
+                                    os.remove(ruta)
+                                    return True
+                            except PermissionError:
+                                if i < intentos - 1:
+                                    time.sleep(espera)
+                                    continue
+                        return False
+                    
+                    del df1
+                    del df2
+                    gc.collect()
+                    time.sleep(0.3)
+                    eliminar_con_reintentos(path1)
+                    eliminar_con_reintentos(path2)
+                    
+                except Exception as e:
+                    st.error(f"❌ Error en la conciliación: {str(e)}")
+                    import traceback
+                    st.code(traceback.format_exc())
+    
+    # REPORTES DE PRESENCIA
+    st.markdown("---")
+    st.markdown("### 📋 Reportes de Presencia")
+    st.caption("Genera reportes específicos para identificar registros presentes o ausentes en cada sistema.")
+    
+    if st.session_state.get('conciliacion_realizada', False) and st.session_state.df_conc1 is not None and st.session_state.df_conc2 is not None:
+        
+        with st.container():
+            st.markdown("#### Reporte SIRE_BN")
+            
+            col_desc, col_btn = st.columns([3, 1])
+            with col_desc:
+                st.markdown("""
+                Muestra qué registros del **SIRE_BN** están **presentes** o **no presentes** en **SIRE_SUNAT**.
+                
+                *Útil para identificar comprobantes declarados en SIRE_BN que no están registrados en SIRE_SUNAT.*
+                """)
+            with col_btn:
+                if st.button("📋 SIRE_BN", use_container_width=True):
+                    with st.spinner("Generando reporte SIRE_BN..."):
+                        try:
+                            df1 = st.session_state.df_conc1
+                            df2 = st.session_state.df_conc2
+                            nombre1 = st.session_state.nombre_conc1
+                            nombre2 = st.session_state.nombre_conc2
+                            
+                            nombre_salida = f"reportes/reporte_SIRE_BN_{datetime.now().strftime('%Y%m%d')}.xlsx"
+                            generar_reporte_presentes_no_presentes(
+                                df_sire_sunat=df1,
+                                df_sire_bn=df2,
+                                nombre_sire_sunat=nombre1,
+                                nombre_sire_bn=nombre2,
+                                ruta_salida=nombre_salida
+                            )
+                            
+                            with open(nombre_salida, "rb") as f:
+                                st.download_button(
+                                    label="📥 Descargar Reporte SIRE_BN",
+                                    data=f,
+                                    file_name=os.path.basename(nombre_salida),
+                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                    use_container_width=True,
+                                    type="primary"
+                                )
+                            st.success("✅ Reporte SIRE_BN generado correctamente")
+                        except Exception as e:
+                            st.error(f"❌ Error generando reporte SIRE_BN: {str(e)}")
+                            import traceback
+                            st.code(traceback.format_exc())
+        
+        st.markdown("---")
+        
+        with st.container():
+            st.markdown("#### Reporte SIRE_SUNAT")
+            
+            col_desc, col_btn = st.columns([3, 1])
+            with col_desc:
+                st.markdown("""
+                Muestra qué registros del **SIRE_SUNAT** están **presentes** o **no presentes** en **SIRE_BN**.
+                
+                *Útil para identificar comprobantes registrados en SIRE_SUNAT que NO han sido declarados en SIRE_BN.*
+                """)
+            with col_btn:
+                if st.button("📋 SIRE_SUNAT", use_container_width=True):
+                    with st.spinner("Generando reporte SIRE_SUNAT..."):
+                        try:
+                            from conciliador import generar_reporte_presentes_no_presentes_sire_sunat
+                            
+                            df1 = st.session_state.df_conc1
+                            df2 = st.session_state.df_conc2
+                            nombre1 = st.session_state.nombre_conc1
+                            nombre2 = st.session_state.nombre_conc2
+                            
+                            nombre_salida = f"reportes/reporte_SIRE_SUNAT_{datetime.now().strftime('%Y%m%d')}.xlsx"
+                            generar_reporte_presentes_no_presentes_sire_sunat(
+                                df_sire_sunat=df1,
+                                df_sire_bn=df2,
+                                nombre_sire_sunat=nombre1,
+                                nombre_sire_bn=nombre2,
+                                ruta_salida=nombre_salida
+                            )
+                            
+                            with open(nombre_salida, "rb") as f:
+                                st.download_button(
+                                    label="📥 Descargar Reporte SIRE_SUNAT",
+                                    data=f,
+                                    file_name=os.path.basename(nombre_salida),
+                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                    use_container_width=True,
+                                    type="primary"
+                                )
+                            st.success("✅ Reporte SIRE_SUNAT generado correctamente")
+                        except Exception as e:
+                            st.error(f"❌ Error generando reporte SIRE_SUNAT: {str(e)}")
+                            import traceback
+                            st.code(traceback.format_exc())
+    else:
+        st.info("ℹ️ Primero ejecuta la **Conciliación General** para habilitar los reportes individuales.")
+
+# ============================================================================
+# PARTE 7: PESTAÑA 4 - ¿CÓMO USAR? + PESTAÑA 5 - INFORMACIÓN + PIE DE PÁGINA
+# ============================================================================
+
+# ============================================================================
+# PESTAÑA 4: ¿CÓMO USAR? - GUÍA COMPLETA
+# ============================================================================
+with tab_instrucciones:
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    
+    st.markdown("## 📖 Guía de uso paso a paso")
+    st.markdown("Sigue esta guía para utilizar correctamente el Validador PLE Compras.")
+    
+    with st.expander("🟢 PASO 1: Preparar el archivo", expanded=True):
+        st.markdown("""
+        ### 📋 Requisitos del archivo
+        
+        | Requisito | Descripción |
+        |-----------|-------------|
+        | **Formato** | Excel (.xlsx) |
+        | **Nombre** | Debe incluir 6 dígitos MMYYYY (ej: `PLE_COMPRAS_032025.xlsx`) |
+        | **Hojas requeridas** | `8.1` (desde fila 8) y `PROGRAMAS SOCIALES` (desde fila 2) |
+        | **Estructura** | Debe seguir el formato estándar del PLE Compras |
+        
+        ### 📌 Pasos a seguir
+        
+        1. **Verifica el nombre del archivo**: Asegúrate de que el nombre contenga exactamente 6 dígitos con el mes y año (MMYYYY).
+           - ✅ Correcto: `PLE_COMPRAS_032025.xlsx`
+           - ❌ Incorrecto: `PLE_COMPRAS_2025-03.xlsx`
+        
+        2. **Confirma las hojas**: Abre el archivo y verifica que contenga las hojas `8.1` y `PROGRAMAS SOCIALES`.
+        
+        3. **Revisa los datos**: Asegúrate de que los datos comiencen en la fila correcta (fila 8 para la hoja 8.1 y fila 2 para Programas Sociales).
+        """)
+    
+    with st.expander("🟢 PASO 2: Cargar el archivo", expanded=False):
+        st.markdown("""
+        ### 📂 Cómo subir el archivo
+        
+        1. Ve al **panel izquierdo** y busca la sección **"📂 Subir nuevo mes"**.
+        2. Haz clic en **"Selecciona archivo..."**.
+        3. Elige el archivo Excel de tu computadora.
+        4. Espera a que se cargue (verás un mensaje de confirmación).
+        
+        ### ⚙️ Qué sucede automáticamente
+        
+        - El sistema **lee automáticamente** las hojas requeridas.
+        - Te mostrará cuántos registros se cargaron.
+        - Si hay error en el nombre o las hojas, te lo indicará con un mensaje de error ❌.
+        """)
+
+    with st.expander("🟢 PASO 3: Validar duplicados", expanded=False):
+        st.markdown("""
+        ### 🔍 Proceso de validación
+
+        1. Una vez subido el archivo, verás el botón **"🔍 VALIDAR DUPLICADOS"** en el panel izquierdo.
+        2. Haz clic en el botón para iniciar la validación.
+        3. El sistema comparará tu archivo con los **últimos 12 meses** almacenados en la base de datos.
+
+        ### 📊 Campos que se comparan
+
+        | Campo | Descripción |
+        |-------|-------------|
+        | Periodo (AAAAMM00) | Periodo del comprobante |
+        | Código Único de la Operación (CUO) | CUO del comprobante |
+        | Fecha de emisión | Fecha del comprobante |
+        | Tipo de comprobante | Tipo (Factura, Boleta, etc.) |
+        | Serie del comprobante | Serie del comprobante |
+        | Número del comprobante | Número del comprobante |
+        | RUC del proveedor | RUC del proveedor |
+        | Razón social | Nombre del proveedor |
+        | Base imponible | Base imponible del comprobante |
+        | IGV | Monto del IGV |
+        | Importe total | Importe total del comprobante |
+
+        ### 📈 Interpretación de resultados
+
+        - **Sin duplicados** ✅: Puedes agregar el mes sin problema.
+        - **Con duplicados** ⚠️: Verás un resumen y detalle para revisar.
+        """)
+
+    with st.expander("🟢 PASO 4: Revisar resultados", expanded=False):
+        st.markdown("""
+        ### 📋 Información mostrada en la pestaña "🔎 Validación"
+
+        **1. Métricas principales**
+        - 📅 Mes cargado
+        - 📊 Registros totales
+        - ⚠️ Estado (Limpio / Con duplicados)
+
+        **2. Resumen de duplicados** (si los hay)
+        - Tabla agrupada por mes y tipo de comprobante
+
+        **3. Detalle de duplicados**
+        - Lista de los primeros 20 duplicados encontrados
+
+        **4. Descarga de reporte**
+        - Botón para descargar el reporte Excel completo
+
+        ### 🎯 Decisiones a tomar
+
+        | Situación | Acción recomendada |
+        |-----------|-------------------|
+        | **Sin duplicados** | Presiona **"✅ Subir a la base de datos"** |
+        | **Con duplicados** | 1. Descarga el Excel<br>2. Revisa y corrige tu archivo<br>3. Sube de nuevo el archivo corregido |
+        """)
+
+    with st.expander("🟢 PASO 5: Agregar al historial", expanded=False):
+        st.markdown("""
+        ### 💾 Confirmar y agregar
+
+        1. Presiona **"✅ Subir a la base de datos"** en el panel izquierdo.
+        2. El sistema guardará todos los registros en la base de datos local.
+
+        ### 🔄 Gestión automática del historial
+
+        - **Límite de meses**: Se mantienen los últimos **12 meses**.
+        - **Rotación automática**: Si ya hay 12 meses, el más antiguo se elimina automáticamente.
+        - **Reemplazo**: Si el mes ya existe, se reemplaza con la nueva versión.
+
+        ### 📦 Cargar múltiples archivos
+
+        Si necesitas llenar el historial inicial:
+        1. Ve a **"⚙️ Gestión" → "📤 Cargar múltiples archivos"**
+        2. Selecciona los archivos (máximo 12)
+        3. Presiona "Cargar batch"
+        """)
+
+    with st.expander("🟢 PASO 6: Corregir errores", expanded=False):
+        st.markdown("""
+        ### 🛠️ Herramientas de gestión
+
+        **Eliminar último mes** 🗑️
+        - Si agregaste el mes equivocado, puedes eliminarlo.
+        - Solo elimina el mes más reciente.
+
+        **Eliminar toda BD** 🔥
+        - Reinicia completamente la base de datos.
+        - **Acción irreversible**: Se eliminan TODOS los meses.
+
+        ### ⚠️ Advertencias importantes
+
+        > **¡Cuidado!** Las acciones de gestión son **irreversibles**.
+        > Siempre verifica antes de eliminar datos.
+        """)
+
+    with st.expander("🟢 PASO 7: Validar duplicados internos", expanded=False):
+        st.markdown("""
+        ### 🔍 Detectar duplicados dentro del mismo archivo
+
+        La pestaña **"🔍 Duplicados Internos"** permite detectar registros duplicados **dentro de un mismo archivo Excel**.
+
+        **Columnas clave:** H (Serie), J (Número), M (RUC), Y (Importe total)
+
+        ### 📋 Proceso
+
+        1. Sube un archivo Excel en la pestaña "Duplicados Internos"
+        2. Haz clic en **"🔍 DETECTAR DUPLICADOS INTERNOS"**
+        3. Revisa los resultados y descarga el reporte si es necesario
+        """)
+
+    with st.expander("🟢 PASO 8: Conciliación de archivos", expanded=False):
+        st.markdown("""
+        ### 🔁 Comparar dos archivos PLE Compras
+
+        La pestaña **"🔁 Conciliación"** permite comparar dos archivos Excel.
+
+        **Proceso:**
+
+        1. **Carga los archivos**: SIRE_SUNAT (Base) y SIRE_BN (Comparar)
+        2. **Especifica la fila de inicio** para cada archivo
+        3. **Ejecuta "Conciliación General"** para obtener el resumen
+        4. **Genera reportes específicos**:
+           - 📋 Reporte SIRE_BN
+           - 📋 Reporte SIRE_SUNAT
+
+        **Campos de comparación:** Tipo + Serie + Número + RUC
+        """)
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# ============================================================================
+# PESTAÑA 5: INFORMACIÓN DEL SISTEMA
+# ============================================================================
+with tab_info:
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    
+    st.markdown("## Información del Sistema")
+    st.markdown("Detalles técnicos, seguridad y métricas del Validador PLE Compras.")
+    
+    st.markdown("---")
+    
+    # ============================================================
+    # COLUMNA 1: RESULTADOS Y ESTRUCTURA
+    # ============================================================
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("### Resultados generados")
+        st.markdown("""
+        Al validar duplicados, se generan reportes en Excel con:
+        
+        **Duplicados_Detalle**
+        - Lista completa de filas duplicadas
+        - Información de cada comprobante
+        
+        **Resumen_por_Mes**
+        - Conteo de duplicados por mes y tipo de comprobante
+        
+        **Estado_Reportes**
+        - Resumen de duplicados nuevos vs ya reportados
+        """)
+      
+
+    # ============================================================
+    # COLUMNA 2: SEGURIDAD Y TECNOLOGÍAS
+    # ============================================================
+    with col2:
+        st.markdown("### Seguridad y almacenamiento")
+        st.markdown("""
+        | Característica | Descripción |
+        |----------------|-------------|
+        | Base de datos | SQLite local |
+        | Privacidad | Los datos quedan en tu máquina |
+        | Conexión externa | No se envía información a internet |
+        | Archivos temporales | Se eliminan automáticamente |
+
+        **Ubicación de archivos:**
+        - Base de datos: `data/ple_history.db`
+        - Reportes: `reportes/`
+        - Temporales: `uploads/`
+        """)
+
+    st.markdown("---")
+
+    st.markdown("### Tecnologías utilizadas")
+    st.markdown("""
+    | Tecnología | Versión | Uso |
+    |------------|---------|-----|
+    | Streamlit | 1.57.0 | Interfaz de usuario |
+    | Pandas | 2.2.2 | Manipulación de datos |
+    | SQLite3 | - | Base de datos local |
+    | OpenPyXL | 3.1.5 | Lectura/escritura de Excel |
+    | Python | 3.12+ | Lenguaje de programación |
+    """)
+
+    st.markdown("---")
+
+    # ============================================================
+    # MÉTRICAS DEL SISTEMA
+    # ============================================================
+    st.markdown("### Métricas del sistema")
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.metric(
+            "Máximo de meses",
+            f"{MESES_A_MANTENER} meses",
+            help="Número máximo de meses que se mantienen en el historial"
+        )
+
+    with col2:
+        st.metric(
+            "Meses actuales",
+            len(obtener_meses_existentes()),
+            help="Meses almacenados actualmente en la base de datos"
+        )
+
+    with col3:
+        st.metric(
+            "Base de datos",
+            "SQLite Local",
+            help="Tipo de base de datos utilizada"
+        )
+
+    with col4:
+        try:
+            reportes = len([f for f in os.listdir("reportes") if f.endswith(".xlsx")])
+        except Exception:
+            reportes = "N/A"
+        st.metric(
+            "Reportes generados",
+            reportes,
+            help="Total de reportes Excel generados"
+        )
+
+        st.markdown("---")
+
+    # ============================================================
+    # SOPORTE Y CONTACTO
+    # ============================================================
+    st.markdown("### Soporte y contacto")
+    st.markdown("""
+    - **Soporte técnico:** Yessly Poma de la Cruz
+    - **Área:** Tributación
+    - **Versión:** 2.2
+    """)
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+    # ============================================================================
+    # PIE DE PÁGINA
+    # ============================================================================
+    st.markdown("---")
+    st.caption("Seguridad: Datos locales en SQLite. Sin conexiones externas. | v2.2 | Soporte: Yessly Poma de la Cruz - Área de Tributación")

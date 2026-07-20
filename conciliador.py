@@ -1225,3 +1225,5 @@ def generar_reporte_presentes_no_presentes_sire_sunat(df_sire_sunat, df_sire_bn,
     return ruta_salida
 
 
+
+
