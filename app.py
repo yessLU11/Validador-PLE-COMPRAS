@@ -1,8 +1,6 @@
 # ============================================================================
 # PARTE 1: IMPORTS Y CONFIGURACIÓN INICIAL
 # ============================================================================
-# APLICACIÓN PRINCIPAL VALIDADOR PLE COMPRAS
-# ============================================================================
 
 import streamlit as st
 import pandas as pd
@@ -248,7 +246,7 @@ os.makedirs("uploads", exist_ok=True)
 # ENCABEZADO PRINCIPAL
 # ============================================================================
 st.markdown('<p class="main-header">🔍 Validador PLE Compras</p>', unsafe_allow_html=True)
-st.markdown('<p class="sub-header">Detecta duplicados comparando con los últimos 12 meses</p>', unsafe_allow_html=True)
+st.markdown('<p class="sub-header">Herramienta que ayuda a validar y gestionar los documentos del PLE</p>', unsafe_allow_html=True)
 
 # ============================================================================
 # PESTAÑAS PRINCIPALES
@@ -318,8 +316,8 @@ with st.sidebar:
 with tab_validar:
     st.markdown("## 🔎 Validador de Duplicados")
     st.markdown("Compara el archivo cargado con los últimos 12 meses almacenados.")
-    st.markdown("**Resumen:** Valida el mes cargado buscando duplicados exactos frente al historial (últimos 12 meses). **Estructura del archivo (.xlsx):** Debe incluir columnas que identifiquen un comprobante: periodo (AAAAMM00) o Fecha, CUO (si aplica), tipo_comprobante, serie, numero, ruc_proveedor (RUC), razon_social, base_imponible, igv y importe_total. Se leen todas las hojas: la hoja principal (habitualmente '8.1') comienza en la fila 8 y las hojas adicionales (ej. 'PROGRAMAS SOCIALES') en la fila 2.")
-    
+    st.markdown("**Resumen:** Valida el mes cargado buscando duplicados exactos frente al historial (últimos 12 meses).\n Permite subir un nuevo mes a la base de datos si no hay duplicados o si se desea reemplazar el mes existente. \n En la **Gestión** puedes cargar múltiples archivos para llenar el historial inicial, eliminar el último mes o eliminar toda la base de datos.")
+
     # ============================================================
     # SECCIÓN: EVALUAR NUEVO MES (SOLO LECTURA)
     # ============================================================
@@ -422,13 +420,13 @@ with tab_validar:
     # Mostrar resultados de validación
     if st.session_state.df_nuevo is not None and st.session_state.validacion_realizada:
         st.markdown("---")
-        st.markdown("### 📊 Resultados de validación")
+        st.markdown("### Resultados de validación")
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            st.metric("📅 Mes cargado", st.session_state.mes_nuevo)
+            st.metric("Mes cargado", st.session_state.mes_nuevo)
         with col2:
-            st.metric("📊 Registros", len(st.session_state.df_nuevo))
+            st.metric("Registros", len(st.session_state.df_nuevo))
         with col3:
             if st.session_state.duplicados is not None and not st.session_state.duplicados.empty:
                 st.metric("⚠️ Duplicados", len(st.session_state.duplicados), delta="⚠️ Revisar")
@@ -450,10 +448,10 @@ with tab_validar:
                         st.metric("📌 Ya reportados", reportados)
                 
                 if st.session_state.resumen_df is not None and not st.session_state.resumen_df.empty:
-                    st.markdown("#### 📈 Resumen de duplicados")
+                    st.markdown("#### Resumen de duplicados")
                     st.dataframe(st.session_state.resumen_df, use_container_width=True, hide_index=True)
                 
-                st.markdown("#### 📋 Detalle de duplicados")
+                st.markdown("#### Detalle de duplicados")
                 st.dataframe(st.session_state.duplicados.head(20), use_container_width=True)
                 if len(st.session_state.duplicados) > 20:
                     st.caption(f"Mostrando 20 de {len(st.session_state.duplicados)} duplicados.")
@@ -476,7 +474,7 @@ with tab_validar:
             mes_a_eliminar = meses_ordenados[0]
             st.warning(f"⚠️ Hay 12 meses. Se eliminará el mes más antiguo: **{mes_a_eliminar}**")
         
-        if st.button("✅ Subir a la base de datos", use_container_width=True, type="primary"):
+        if st.button("Subir a la base de datos", use_container_width=True, type="primary"):
             if not st.session_state.get("_subiendo_mes", False):
                 st.session_state._subiendo_mes = True
                 try:
@@ -507,7 +505,7 @@ with tab_validar:
     st.markdown("### ⚙️ Gestión")
     
     # --- Cargar múltiples archivos ---
-    with st.expander("📤 Cargar múltiples archivos"):
+    with st.expander("📤 Cargar múltiples archivos (12 documentos xlsx que seran la base de datos a usar)"):
         st.caption("Carga varios archivos para llenar el historial inicial (máx 12).")
         
         batch_key = st.session_state.get('_batch_key', 'batch_uploader_default')
@@ -613,12 +611,11 @@ with tab_validar:
 # PESTAÑA 2: DUPLICADOS INTERNOS
 # ============================================================================
 with tab_duplicados_internos:
-    st.markdown("## 🔍 Validador de Duplicados Internos")
-    st.markdown("Detecta registros duplicados dentro del mismo archivo Excel (todas las hojas).")
-    st.markdown("**Estructura recomendada (.xlsx):** Debe contener columnas mínimas para identificar comprobantes: tipo_comprobante, serie, numero, ruc_proveedor (RUC) e importe_total. Si su plantilla usa columnas por letra, H/J/M/Y suelen mapear a Serie/Numero/RUC/Importe. Lectura: primera hoja desde fila 8; hojas adicionales desde fila 2.")
+    st.markdown("## Validador de Duplicados Internos")
+    st.markdown("Detecta registros duplicados dentro del mismo archivo Excel.")
+    st.markdown("**Estructura (.xlsx):** Debe contener columnas: tipo_comprobante, serie, numero, ruc_proveedor (RUC) e importe_total. Si su plantilla usa columnas por letra, H/J/M/Y suelen mapear a Serie/Numero/RUC/Importe. Lectura: primera hoja desde fila 8; hojas adicionales desde fila 2.")
     st.markdown("**Cómo funciona:** Se cargan todas las hojas, se validan las columnas clave y se detectan grupos de registros duplicados. Se genera un reporte Excel descargable y una auditoría resumida para revisión rápida.")
-    st.markdown("Usa 'Generar Reporte' para obtener el Excel completo de duplicados y 'Limpiar resultados' para volver a cargar otro archivo.")
-    st.markdown("La auditoría detallada muestra duplicados por hoja y por grupos detectados.")
+   
     
     # SECCIÓN: CARGAR ARCHIVO
     st.markdown("---")
@@ -713,7 +710,7 @@ with tab_duplicados_internos:
                     st.metric("📊 Grupos únicos", auditoria.get('grupos_duplicados', 0))
                 with col4:
                     porcentaje = (auditoria.get('total_duplicados', 0) / auditoria.get('total_filas', 1)) * 100
-                    st.metric("📈 % Duplicados", f"{porcentaje:.1f}%")
+                    st.metric("% Duplicados", f"{porcentaje:.1f}%")
                 
                 if auditoria.get('duplicados_por_hoja'):
                     st.markdown("#### 📄 Duplicados por hoja")
@@ -744,7 +741,7 @@ with tab_duplicados_internos:
                             try:
                                 nombre_base = os.path.splitext(st.session_state.archivo_interno_nombre)[0]
                                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                                nombre_salida = f"reportes/duplicados_internos_{nombre_base}_{timestamp}.xlsx"
+                                nombre_salida = f"reportes/duplicados_internos_{nombre_base}.xlsx"
                                 
                                 generar_reporte_duplicados_interno(
                                     st.session_state.df_interno_raw,
@@ -977,7 +974,7 @@ with tab_conciliacion:
                     })
                     st.dataframe(df_resumen, use_container_width=True, hide_index=True)
                     
-                    nombre_salida = f"reportes/conciliacion_general_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+                    nombre_salida = f"reportes/conciliacion_general.xlsx"
                     generar_reporte_conciliacion(
                         resumen, solo1, solo2,
                         df1, df2,
@@ -1045,7 +1042,7 @@ with tab_conciliacion:
                             nombre1 = st.session_state.nombre_conc1
                             nombre2 = st.session_state.nombre_conc2
                             
-                            nombre_salida = f"reportes/reporte_SIRE_BN_{datetime.now().strftime('%Y%m%d')}.xlsx"
+                            nombre_salida = f"reportes/reporte_SIRE_BN.xlsx"
                             generar_reporte_presentes_no_presentes(
                                 df_sire_sunat=df1,
                                 df_sire_bn=df2,
@@ -1092,7 +1089,7 @@ with tab_conciliacion:
                             nombre1 = st.session_state.nombre_conc1
                             nombre2 = st.session_state.nombre_conc2
                             
-                            nombre_salida = f"reportes/reporte_SIRE_SUNAT_{datetime.now().strftime('%Y%m%d')}.xlsx"
+                            nombre_salida = f"reportes/reporte_SIRE_SUNAT.xlsx"
                             generar_reporte_presentes_no_presentes_sire_sunat(
                                 df_sire_sunat=df1,
                                 df_sire_bn=df2,
