@@ -251,12 +251,12 @@ st.markdown('<p class="sub-header">Herramienta que ayuda a validar y gestionar l
 # ============================================================================
 # PESTAÑAS PRINCIPALES
 # ============================================================================
-tab_validar, tab_duplicados_internos, tab_conciliacion, tab_instrucciones, tab_info = st.tabs([
+tab_validar, tab_duplicados_internos, tab_conciliacion, tab_convertidor, tab_instrucciones = st.tabs([
     "🔎 Validación",
     "🔍 Duplicados Internos",
     "🔁 Conciliación",
-    "📖 ¿Cómo usar?",
-    "ℹ️ Información"
+    "🗂️ Convertir TXT a EXCEL",
+    "📖 ¿Cómo usar?"
 ])
 
 # ============================================================================
@@ -1297,113 +1297,296 @@ with tab_instrucciones:
     st.markdown("</div>", unsafe_allow_html=True)
 
 # ============================================================================
-# PESTAÑA 5: INFORMACIÓN DEL SISTEMA
+# PESTAÑA CONVERTIDOR SIRE (TXT a Excel)
 # ============================================================================
-with tab_info:
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    
-    st.markdown("## Información del Sistema")
-    st.markdown("Detalles técnicos, seguridad y métricas del Validador PLE Compras.")
-    
-    st.markdown("---")
+with tab_convertidor:
+    st.markdown("## 🔄 Convertidor SIRE/PLE - SUNAT")
+    st.markdown("Convierte archivos TXT del formato SIRE a Excel con múltiples hojas.")
     
     # ============================================================
-    # COLUMNA 1: RESULTADOS Y ESTRUCTURA
+    # CSS personalizado para el convertidor
     # ============================================================
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("### Resultados generados")
-        st.markdown("""
-        Al validar duplicados, se generan reportes en Excel con:
-        
-        **Duplicados_Detalle**
-        - Lista completa de filas duplicadas
-        - Información de cada comprobante
-        
-        **Resumen_por_Mes**
-        - Conteo de duplicados por mes y tipo de comprobante
-        
-        **Estado_Reportes**
-        - Resumen de duplicados nuevos vs ya reportados
-        """)
-      
-
-    # ============================================================
-    # COLUMNA 2: SEGURIDAD Y TECNOLOGÍAS
-    # ============================================================
-    with col2:
-        st.markdown("### Seguridad y almacenamiento")
-        st.markdown("""
-        | Característica | Descripción |
-        |----------------|-------------|
-        | Base de datos | SQLite local |
-        | Privacidad | Los datos quedan en tu máquina |
-        | Conexión externa | No se envía información a internet |
-        | Archivos temporales | Se eliminan automáticamente |
-
-        **Ubicación de archivos:**
-        - Base de datos: `data/ple_history.db`
-        - Reportes: `reportes/`
-        - Temporales: `uploads/`
-        """)
-
-    st.markdown("---")
-
-    st.markdown("### Tecnologías utilizadas")
     st.markdown("""
-    | Tecnología | Versión | Uso |
-    |------------|---------|-----|
-    | Streamlit | 1.57.0 | Interfaz de usuario |
-    | Pandas | 2.2.2 | Manipulación de datos |
-    | SQLite3 | - | Base de datos local |
-    | OpenPyXL | 3.1.5 | Lectura/escritura de Excel |
-    | Python | 3.12+ | Lenguaje de programación |
-    """)
-
+    <style>
+    .opcion-card {
+        background: #f8f9fa;
+        border: 2px solid #dee2e6;
+        border-radius: 10px;
+        padding: 20px;
+        margin: 10px 0;
+        transition: all 0.3s ease;
+        height: 100%;
+    }
+    .opcion-card:hover {
+        border-color: #2563EB;
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
+    }
+    .opcion-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #0F172A;
+        margin-bottom: 8px;
+    }
+    .opcion-desc {
+        font-size: 0.9rem;
+        color: #475569;
+    }
+    .info-box {
+        background: #f0f4ff;
+        border-left: 4px solid #2563EB;
+        padding: 15px;
+        border-radius: 8px;
+        margin: 10px 0;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # ============================================================
+    # IMPORTAR MÓDULOS DEL CONVERTIDOR
+    # ============================================================
+    try:
+        from src.sire_core import (
+            SIREValidator,
+            TXTProcessorConEncabezado,
+            TXTProcessorSinEncabezado,
+            ExcelGenerator
+        )
+        MODULOS_DISPONIBLES = True
+    except ImportError as e:
+        st.error(f"❌ Error al cargar los módulos del convertidor: {str(e)}")
+        st.info("Asegúrate de que la carpeta 'src/' existe y contiene el archivo 'sire_core.py'")
+        MODULOS_DISPONIBLES = False
+    
+    # ============================================================
+    # INICIALIZAR ESTADO DEL CONVERTIDOR
+    # ============================================================
+    if 'formato_seleccionado' not in st.session_state:
+        st.session_state.formato_seleccionado = None
+    if 'mostrar_paso2' not in st.session_state:
+        st.session_state.mostrar_paso2 = False
+    if 'archivo_convertir' not in st.session_state:
+        st.session_state.archivo_convertir = None
+    
+    # ============================================================
+    # PASO 1: SELECCIÓN DE FORMATO
+    # ============================================================
+    if MODULOS_DISPONIBLES:
+        st.markdown("### 📂 Paso 1: Selecciona el Formato de tu Archivo TXT")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("""
+            <div class="opcion-card">
+                <div class="opcion-title">📄 Formato CON Encabezados</div>
+                <div class="opcion-desc">Primera línea contiene nombres de columnas</div>
+                <div class="opcion-desc" style="margin-top:10px;color:#666;">Ej: Ruc|Razón Social|Total CP|...</div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            if st.button("✅ CON ENCABEZADOS", use_container_width=True, key="btn_convertir_formato1"):
+                st.session_state.formato_seleccionado = "CON_ENCABEZADOS"
+                st.session_state.mostrar_paso2 = True
+                st.session_state.archivo_convertir = None
+        
+        with col2:
+            st.markdown("""
+            <div class="opcion-card">
+                <div class="opcion-title">📄 Formato SIN Encabezados</div>
+                <div class="opcion-desc">Archivo inicia directamente con datos</div>
+                <div class="opcion-desc" style="margin-top:10px;color:#666;">Ej: 1|20260500|651-18264653-14|...</div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            if st.button("❌ SIN ENCABEZADOS", use_container_width=True, key="btn_convertir_formato2"):
+                st.session_state.formato_seleccionado = "SIN_ENCABEZADOS"
+                st.session_state.mostrar_paso2 = True
+                st.session_state.archivo_convertir = None
+        
+        # ============================================================
+        # PASO 2: CARGA DE ARCHIVO
+        # ============================================================
+        if st.session_state.mostrar_paso2 and st.session_state.formato_seleccionado:
+            formato = st.session_state.formato_seleccionado
+            
+            st.markdown("---")
+            st.markdown(f"### 📂 Paso 2: Cargar archivo ({formato})")
+            
+            if st.button("🔄 Cambiar formato", use_container_width=False):
+                st.session_state.formato_seleccionado = None
+                st.session_state.mostrar_paso2 = False
+                st.session_state.archivo_convertir = None
+                st.rerun()
+            
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                uploaded_file = st.file_uploader(
+                    f"Selecciona el archivo TXT ({formato})",
+                    type=["txt"],
+                    help=f"Archivo en formato SIRE - {formato}",
+                    key="file_uploader_convertir"
+                )
+            
+            # ============================================================
+            # PASO 3: PROCESAMIENTO
+            # ============================================================
+            if uploaded_file is not None:
+                st.session_state.archivo_convertir = uploaded_file
+                
+                # Info del archivo
+                tamano_mb = uploaded_file.size / (1024 * 1024)
+                st.markdown(f"""
+                <div class="info-box">
+                    <b>📁 Archivo:</b> {uploaded_file.name}<br>
+                    <b>📊 Tamaño:</b> {tamano_mb:.2f} MB ({uploaded_file.size:,} bytes)<br>
+                    <b>📋 Formato:</b> {formato}
+                </div>
+                """, unsafe_allow_html=True)
+                
+                st.markdown("---")
+                st.markdown("### ⚙️ Paso 3: Procesar y Convertir")
+                
+                if st.button("🚀 CONVERTIR A EXCEL", use_container_width=True, type="primary"):
+                    start_time = time.perf_counter()
+                    progress_bar = st.progress(0.0)
+                    status_text = st.empty()
+                    
+                    def update_progress(value, message=''):
+                        try:
+                            progress_bar.progress(value)
+                        except Exception:
+                            pass
+                        if message:
+                            status_text.info(message)
+                    
+                    with st.spinner('⏳ Procesando datos, por favor espere...'):
+                        try:
+                            # Crear carpetas si no existen
+                            os.makedirs("input_files", exist_ok=True)
+                            os.makedirs("output_files", exist_ok=True)
+                            
+                            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                            update_progress(0.05, 'Guardando archivo temporal...')
+                            
+                            # Guardar temporalmente
+                            temp_path = os.path.join("input_files", "temp_upload.txt")
+                            with open(temp_path, "wb") as f:
+                                f.write(uploaded_file.getbuffer())
+                            
+                            # Elegir procesador según formato
+                            if formato == "CON_ENCABEZADOS":
+                                processor = TXTProcessorConEncabezado(max_size_mb=2000)
+                            else:
+                                processor = TXTProcessorSinEncabezado(max_size_mb=2000)
+                            
+                            update_progress(0.20, 'Leyendo el archivo TXT...')
+                            df, error = processor.read_txt(temp_path)
+                            
+                            if error:
+                                st.error(f"❌ Error al leer: {error}")
+                            else:
+                                update_progress(0.45, 'Validando datos...')
+                                validator = SIREValidator()
+                                validation = validator.validate_all(df)
+                                
+                                # Mostrar advertencias
+                                if validation['warnings']:
+                                    for warn in validation['warnings']:
+                                        st.warning(f"⚠️ {warn}")
+                                
+                                if not validation['is_valid']:
+                                    st.error("❌ Validación fallida:")
+                                    for err in validation['errors']:
+                                        st.error(f"  • {err}")
+                                else:
+                                    # Generar Excel
+                                    nombre_original = uploaded_file.name
+                                    if nombre_original.lower().endswith('.txt'):
+                                        nombre_original = nombre_original[:-4]
+                                    
+                                    output_filename = f"output_files/{nombre_original}.xlsx"
+                                    generator = ExcelGenerator()
+                                    success, message = generator.create_excel(
+                                        df,
+                                        output_filename,
+                                        progress_callback=update_progress
+                                    )
+                                    
+                                    elapsed = time.perf_counter() - start_time
+                                    update_progress(1.0, f'Conversión completada en {elapsed:.2f} segundos')
+                                    
+                                    if success:
+                                        # Limpiar temporal
+                                        if os.path.exists(temp_path):
+                                            os.remove(temp_path)
+                                        
+                                        # Mostrar estadísticas
+                                        st.markdown("---")
+                                        st.markdown("### 📊 Estadísticas de Conversión")
+                                        
+                                        col1, col2, col3, col4 = st.columns(4)
+                                        with col1:
+                                            st.metric("📝 Registros", f"{len(df):,}")
+                                        with col2:
+                                            st.metric("📊 Columnas", len(df.columns))
+                                        with col3:
+                                            st.metric("📄 Hojas Excel", generator.sheets_created)
+                                        with col4:
+                                            st.metric("⏱️ Tiempo", f"{elapsed:.2f} s")
+                                        
+                                        # Buscar columna de monto
+                                        monto_col = None
+                                        for col in ['MontoTotal', 'Total CP', 'Total']:
+                                            if col in df.columns:
+                                                monto_col = col
+                                                break
+                                        if monto_col:
+                                            try:
+                                                total = pd.to_numeric(df[monto_col], errors='coerce').sum()
+                                                st.metric("💰 Total General", f"{total:,.2f}")
+                                            except:
+                                                st.metric("💰 Total", "N/A")
+                                        
+                                        # Vista previa
+                                        st.markdown("---")
+                                        st.markdown("### 👀 Vista Previa de Datos")
+                                        st.dataframe(df.head(10), use_container_width=True, height=300)
+                                        
+                                        st.success("✅ ¡Conversión completada exitosamente!")
+                                        
+                                        # Botón descarga
+                                        with open(output_filename, "rb") as f:
+                                            st.download_button(
+                                                label="📥 DESCARGAR EXCEL GENERADO",
+                                                data=f,
+                                                file_name=f"docExcel_{timestamp}.xlsx",
+                                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                                use_container_width=True,
+                                                type="primary"
+                                            )
+                                    else:
+                                        st.error(f"❌ {message}")
+                            
+                        except Exception as e:
+                            st.error(f"❌ Error inesperado: {str(e)}")
+                            with st.expander("Ver detalles técnicos"):
+                                st.code(traceback.format_exc())
+        
+        else:
+            if not st.session_state.mostrar_paso2:
+                st.info("👆 Selecciona un formato arriba para continuar con la carga del archivo.")
+    
+    # ============================================================
+    # FOOTER DEL CONVERTIDOR
+    # ============================================================
     st.markdown("---")
-
-    # ============================================================
-    # MÉTRICAS DEL SISTEMA
-    # ============================================================
-    st.markdown("### Métricas del sistema")
-
-    col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-        st.metric(
-            "Máximo de meses",
-            f"{MESES_A_MANTENER} meses",
-            help="Número máximo de meses que se mantienen en el historial"
-        )
-
-    with col2:
-        st.metric(
-            "Meses actuales",
-            len(obtener_meses_existentes()),
-            help="Meses almacenados actualmente en la base de datos"
-        )
-
-    with col3:
-        st.metric(
-            "Base de datos",
-            "SQLite Local",
-            help="Tipo de base de datos utilizada"
-        )
-
-    with col4:
-        try:
-            reportes = len([f for f in os.listdir("reportes") if f.endswith(".xlsx")])
-        except Exception:
-            reportes = "N/A"
-        st.metric(
-            "Reportes generados",
-            reportes,
-            help="Total de reportes Excel generados"
-        )
-
-        st.markdown("---")
-
+    st.markdown("""
+    <div style='text-align: center; color: #9e9e9e; padding: 10px;'>
+        <p>🏦 <b>Área de Tributación - BN</b></p>
+        <p style='font-size: 11px;'>Convertidor SIRE/PLE v2.1 | Automatización de Declaraciones Tributarias</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
     # ============================================================
     # SOPORTE Y CONTACTO
     # ============================================================
