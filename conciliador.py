@@ -59,8 +59,6 @@ def normalizar_tipo_documento(valor):
     return valor_str.zfill(2)
 
 
-
-
 # ------------------------------------------------------------
 # 0.1. FUNCIÓN PARA OBTENER MES DE UNA FECHA
 # ------------------------------------------------------------
@@ -170,9 +168,14 @@ def leer_todas_hojas_conciliacion(ruta_archivo, fila_inicio=1):
         except Exception as e:
             print(f"Error en hoja {hoja}: {e}")
             continue
+
+    # CERRAR EL ARCHIVO EXPLÍCITAMENTE
+    xlsx.close()
+    
     if not dfs:
         raise ValueError("No se pudo leer ninguna hoja válida.")
     return pd.concat(dfs, ignore_index=True)
+
 
 
 # ------------------------------------------------------------
@@ -511,6 +514,7 @@ def generar_reporte_presentes_no_presentes(df_sire_sunat, df_sire_bn, nombre_sir
     - Detalle de TODAS las filas para cada tipo (incluyendo duplicados)
     - Descripción explicativa debajo de la tabla
     - Gráfica de barras agrupadas como imagen (con matplotlib)
+    - Hoja BD con datos del SIRE_BN
     """
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -557,20 +561,19 @@ def generar_reporte_presentes_no_presentes(df_sire_sunat, df_sire_bn, nombre_sir
 
     # TÍTULO
     ws_resumen['A1'] = 'RESUMEN: REGISTROS DEL SIRE_BN'
-    ws_resumen.merge_cells('A1:H1')
+    ws_resumen.merge_cells('A1:G1')
     ws_resumen['A1'].font = Font(bold=True, size=14, color="FFFFFF")
     ws_resumen['A1'].fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
     ws_resumen['A1'].alignment = Alignment(horizontal='center', vertical='center')
 
-    # ENCABEZADOS CON NUEVAS COLUMNAS
+    # ENCABEZADOS CON NUEVAS COLUMNAS (7 columnas)
     headers = [
         'Tipo de Documento',
         'Nombre de Tipo de Doc',
+        'Total en SIRE_BN',
         'Presentes en SIRE_SUNAT',
         'Coincidencia(%)',
         'No presentes en SIRE_SUNAT',
-        'Coincidencia(%)',
-        'Total en SIRE_BN',
         'Coincidencia(%)'
     ]
     ws_resumen.append(headers)
@@ -584,12 +587,11 @@ def generar_reporte_presentes_no_presentes(df_sire_sunat, df_sire_bn, nombre_sir
 
     ids_sire_sunat = set(df_sire_sunat['ID_CONCILIACION'].dropna())
 
-    fila_actual = 3
+    fila_actual = 3  # Empieza en fila 3 (fila 1 título, fila 2 encabezados)
     total_presentes = 0
     total_no_presentes = 0
     total_registros_sire_bn = 0
     
-    # Guardar datos para la gráfica
     datos_grafica = []
 
     for tipo in tipos_ordenados:
@@ -603,7 +605,6 @@ def generar_reporte_presentes_no_presentes(df_sire_sunat, df_sire_bn, nombre_sir
         # Calcular porcentajes (como decimales)
         pct_presentes = (presentes_count / total_registros) if total_registros > 0 else 0
         pct_no_presentes = (no_presentes_count / total_registros) if total_registros > 0 else 0
-        pct_total = 1.0  # Siempre 100%
 
         total_presentes += presentes_count
         total_no_presentes += no_presentes_count
@@ -611,7 +612,6 @@ def generar_reporte_presentes_no_presentes(df_sire_sunat, df_sire_bn, nombre_sir
 
         nombre_tipo = TIPOS_DOC_NOMBRES.get(tipo, tipo)
         
-        # Guardar para gráfica
         datos_grafica.append({
             'Tipo': tipo,
             'Nombre': nombre_tipo,
@@ -620,14 +620,14 @@ def generar_reporte_presentes_no_presentes(df_sire_sunat, df_sire_bn, nombre_sir
             'Total': int(total_registros)
         })
 
+        # Escribir datos: columna 1= Tipo, 2=Nombre, 3=Total, 4=Presentes, 5=%, 6=No_presentes, 7=%
         ws_resumen.cell(row=fila_actual, column=1, value=tipo)
         ws_resumen.cell(row=fila_actual, column=2, value=nombre_tipo)
-        ws_resumen.cell(row=fila_actual, column=3, value=int(presentes_count))
-        ws_resumen.cell(row=fila_actual, column=4, value=pct_presentes)
-        ws_resumen.cell(row=fila_actual, column=5, value=int(no_presentes_count))
-        ws_resumen.cell(row=fila_actual, column=6, value=pct_no_presentes)
-        ws_resumen.cell(row=fila_actual, column=7, value=int(total_registros))
-        ws_resumen.cell(row=fila_actual, column=8, value=pct_total)
+        ws_resumen.cell(row=fila_actual, column=3, value=int(total_registros))
+        ws_resumen.cell(row=fila_actual, column=4, value=int(presentes_count))
+        ws_resumen.cell(row=fila_actual, column=5, value=pct_presentes)
+        ws_resumen.cell(row=fila_actual, column=6, value=int(no_presentes_count))
+        ws_resumen.cell(row=fila_actual, column=7, value=pct_no_presentes)
         fila_actual += 1
 
     # Fila de TOTAL
@@ -636,26 +636,26 @@ def generar_reporte_presentes_no_presentes(df_sire_sunat, df_sire_bn, nombre_sir
     
     ws_resumen.cell(row=fila_actual, column=1, value='TOTAL')
     ws_resumen.cell(row=fila_actual, column=2, value='')
-    ws_resumen.cell(row=fila_actual, column=3, value=int(total_presentes))
-    ws_resumen.cell(row=fila_actual, column=4, value=pct_total_presentes)
-    ws_resumen.cell(row=fila_actual, column=5, value=int(total_no_presentes))
-    ws_resumen.cell(row=fila_actual, column=6, value=pct_total_no_presentes)
-    ws_resumen.cell(row=fila_actual, column=7, value=int(total_registros_sire_bn))
-    ws_resumen.cell(row=fila_actual, column=8, value=1.0)
+    ws_resumen.cell(row=fila_actual, column=3, value=int(total_registros_sire_bn))
+    ws_resumen.cell(row=fila_actual, column=4, value=int(total_presentes))
+    ws_resumen.cell(row=fila_actual, column=5, value=pct_total_presentes)
+    ws_resumen.cell(row=fila_actual, column=6, value=int(total_no_presentes))
+    ws_resumen.cell(row=fila_actual, column=7, value=pct_total_no_presentes)
 
+    # Formato de encabezados
     _aplicar_formato_encabezado(ws_resumen, row=2)
     
     # Negrita para la fila de total
-    for col_idx in range(1, 9):
+    for col_idx in range(1, 8):
         ws_resumen.cell(row=fila_actual, column=col_idx).font = Font(bold=True)
 
-    # Formato de porcentaje para columnas D, F, H (índices 4, 6, 8)
+    # Formato de porcentaje para columnas 5 y 7 (índices de porcentaje)
     for row in range(3, fila_actual + 1):
-        for col_idx in [4, 6, 8]:
+        for col_idx in [5, 7]:  # Columnas de porcentaje
             cell = ws_resumen.cell(row=row, column=col_idx)
             cell.number_format = '0.00%'
 
-    # ---- BARRAS DE DATOS para columnas de porcentaje (D, F, H) ----
+    # ---- BARRAS DE DATOS para columnas de porcentaje ----
     data_bar_rule = DataBarRule(
         start_type='min',
         end_type='max',
@@ -665,39 +665,33 @@ def generar_reporte_presentes_no_presentes(df_sire_sunat, df_sire_bn, nombre_sir
         maxLength=None
     )
     if fila_actual > 3:
-        # Columna D (Presentes %)
+        # Columna 5 (Presentes %)
         ws_resumen.conditional_formatting.add(
-            f'D3:D{fila_actual-1}',
+            f'E3:E{fila_actual-1}',
             data_bar_rule
         )
-        # Columna F (No presentes %)
+        # Columna 7 (No presentes %)
         ws_resumen.conditional_formatting.add(
-            f'F3:F{fila_actual-1}',
-            data_bar_rule
-        )
-        # Columna H (Total %)
-        ws_resumen.conditional_formatting.add(
-            f'H3:H{fila_actual-1}',
+            f'G3:G{fila_actual-1}',
             data_bar_rule
         )
 
-    # Ajustar ancho de columnas
+    # Ajustar ancho de columnas (7 columnas)
     ws_resumen.column_dimensions['A'].width = 20
     ws_resumen.column_dimensions['B'].width = 30
-    ws_resumen.column_dimensions['C'].width = 22
-    ws_resumen.column_dimensions['D'].width = 18
-    ws_resumen.column_dimensions['E'].width = 25
-    ws_resumen.column_dimensions['F'].width = 18
+    ws_resumen.column_dimensions['C'].width = 18
+    ws_resumen.column_dimensions['D'].width = 22
+    ws_resumen.column_dimensions['E'].width = 18
+    ws_resumen.column_dimensions['F'].width = 22
     ws_resumen.column_dimensions['G'].width = 18
-    ws_resumen.column_dimensions['H'].width = 18
 
-    # ---- DESCRIPCIÓN EXPLICATIVA (3-4 líneas debajo de la tabla) ----
+    # ---- DESCRIPCIÓN EXPLICATIVA ----
     fila_descripcion = fila_actual + 3
 
     descripcion = [
-        "DESCRIPCIÓN DEL REPORTE:",
-        "• Coincidencia (%): Porcentaje de registros que están en ambos sistemas.",
-        "• No coincidencia (%): Porcentaje de registros que faltan en uno de los sistemas.",
+        "DESCRIPCIÓN DEL REPORTE: Coincidencia (%): Porcentaje de registros que están en ambos sistemas. No coincidencia (%): Porcentaje de registros que faltan en uno de los sistemas.",
+        "• Agregar Grafico circular para visualizar la proporción de registros presentes y no presentes.",
+        "• Agregar Grafico de barras para comparar la cantidad de registros por tipo de documento.",
     ]
     
     for i, linea in enumerate(descripcion):
@@ -713,19 +707,14 @@ def generar_reporte_presentes_no_presentes(df_sire_sunat, df_sire_bn, nombre_sir
     if datos_grafica:
         df_grafica = pd.DataFrame(datos_grafica)
         
-        # Crear figura y ejes
         fig, ax = plt.subplots(figsize=(10, 6))
-        
-        # Configurar posición de barras
         x = range(len(df_grafica))
         width = 0.25
         
-        # Barras
         ax.bar([i - width for i in x], df_grafica['Presentes'], width, label='Presentes en SIRE_SUNAT', color='#2563EB')
         ax.bar(x, df_grafica['No_Presentes'], width, label='No presentes en SIRE_SUNAT', color='#EF4444')
         ax.bar([i + width for i in x], df_grafica['Total'], width, label='Total en SIRE_BN', color='#10B981')
         
-        # Configurar ejes
         ax.set_xlabel('Tipo de Documento')
         ax.set_ylabel('Cantidad de Registros')
         ax.set_title('Conciliación por Tipo de Documento')
@@ -733,33 +722,48 @@ def generar_reporte_presentes_no_presentes(df_sire_sunat, df_sire_bn, nombre_sir
         ax.set_xticklabels(df_grafica['Tipo'], rotation=45, ha='right')
         ax.legend()
         
-        # Ajustar layout
         plt.tight_layout()
         
-        # Guardar gráfica en memoria como imagen
         img_buffer = io.BytesIO()
         plt.savefig(img_buffer, format='png', dpi=100, bbox_inches='tight')
         img_buffer.seek(0)
         plt.close()
         
-        # Insertar imagen en Excel
         img = Image(img_buffer)
-        # Ajustar tamaño de la imagen
         img.width = 700
         img.height = 400
         
-        # Calcular posición (debajo de la descripción)
         fila_grafica = fila_descripcion + len(descripcion) + 2
-        # Convertir fila a coordenada de celda (columna A)
-        from openpyxl.utils import get_column_letter
         posicion = f'A{fila_grafica}'
         ws_resumen.add_image(img, posicion)
 
-    # ---- GUARDAR ARCHIVO CON OPENPYXL (MANTIENE FORMATO) ----
-    wb.save(ruta_salida)
+    # ---- HOJA BD (SIRE_BD) ----
+    ws_bd = wb.create_sheet("SIRE_BD")
     
+    # Título
+    ws_bd['A1'] = 'PROPUESTA SIRE_BN (SIRE_BD)'
+    ws_bd.merge_cells('A1:L1')
+    ws_bd['A1'].font = Font(bold=True, size=14, color="FFFFFF")
+    ws_bd['A1'].fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
+    ws_bd['A1'].alignment = Alignment(horizontal='center', vertical='center')
+    
+    # Información de registros
+    ws_bd['A3'] = 'Total registros:'
+    ws_bd['A3'].font = Font(bold=True)
+    ws_bd['B3'] = len(df_sire_bn)
+    
+    # Nota o instrucción
+    ws_bd['A5'] = 'Tabla principal (Propuesta) usada para hacer la conciliación:'
+    ws_bd['A5'].font = Font(bold=True)
+    
+    # Ajustar ancho de columnas
+    for col in ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M']:
+        ws_bd.column_dimensions[col].width = 15
+
+    # ---- GUARDAR ARCHIVO CON OPENPYXL ----
+    wb.save(ruta_salida)
+
     # ---------- HOJAS POR TIPO DE DOCUMENTO ----------
-    # (Se mantiene igual, se agregan después de guardar el archivo principal)
     from openpyxl import load_workbook
     
     wb = load_workbook(ruta_salida)
@@ -799,7 +803,6 @@ def generar_reporte_presentes_no_presentes(df_sire_sunat, df_sire_bn, nombre_sir
         celda_titulo.alignment = Alignment(horizontal='center', vertical='center')
         fila_inicio += 1
 
-        # --- Sección: No presentes en SIRE_SUNAT (con separación por mes) ---
         df_no_presentes = df_sire_bn_tipo[~mask_presente].copy()
 
         if not df_no_presentes.empty:
@@ -864,7 +867,6 @@ def generar_reporte_presentes_no_presentes(df_sire_sunat, df_sire_bn, nombre_sir
 
     wb.save(ruta_salida)
     return ruta_salida
-
 # ------------------------------------------------------------
 # 7. REPORTE: REGISTROS DE SIRE_SUNAT (DESDE SIRE_SUNAT HACIA SIRE_BN)
 # ------------------------------------------------------------
@@ -881,7 +883,7 @@ def generar_reporte_presentes_no_presentes_sire_sunat(df_sire_sunat, df_sire_bn,
     - Gráfica de barras agrupadas como imagen (con matplotlib)
     
     Título: RESUMEN: REGISTROS DE SIRE_SUNAT
-    Columnas: Tipo de Documento | Nombre de Tipo de Doc | Presentes en SIRE_BN | Coincidencia(%) | No presentes en SIRE_BN | Coincidencia(%) | Total en SIRE_SUNAT | Coincidencia(%)
+    Columnas: Tipo de Documento | Nombre de Tipo de Doc | Total en SIRE_SUNAT | Presentes en SIRE_BN | Coincidencia(%) | No presentes en SIRE_BN | Coincidencia(%)
     """
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -917,7 +919,7 @@ def generar_reporte_presentes_no_presentes_sire_sunat(df_sire_sunat, df_sire_bn,
         '46': 'No domiciliado',
         '53': 'Declaración de mensajería o courier',
         '87': 'Nota de crédito especial',
-        '88' : 'Nota de debito especial',
+        '88': 'Nota de débito especial',
         'DESCONOCIDO': 'Tipo desconocido'
     }
 
@@ -929,20 +931,19 @@ def generar_reporte_presentes_no_presentes_sire_sunat(df_sire_sunat, df_sire_bn,
 
     # TÍTULO
     ws_resumen['A1'] = 'RESUMEN: REGISTROS DE SIRE_SUNAT'
-    ws_resumen.merge_cells('A1:H1')
+    ws_resumen.merge_cells('A1:G1')
     ws_resumen['A1'].font = Font(bold=True, size=14, color="FFFFFF")
     ws_resumen['A1'].fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
     ws_resumen['A1'].alignment = Alignment(horizontal='center', vertical='center')
 
-    # ENCABEZADOS CON NUEVAS COLUMNAS
+    # ENCABEZADOS CON NUEVAS COLUMNAS (7 columnas)
     headers = [
         'Tipo de Documento',
         'Nombre de Tipo de Doc',
+        'Total en SIRE_SUNAT',
         'Presentes en SIRE_BN',
         'Coincidencia(%)',
         'No presentes en SIRE_BN',
-        'Coincidencia(%)',
-        'Total en SIRE_SUNAT',
         'Coincidencia(%)'
     ]
     ws_resumen.append(headers)
@@ -961,7 +962,6 @@ def generar_reporte_presentes_no_presentes_sire_sunat(df_sire_sunat, df_sire_bn,
     total_no_presentes = 0
     total_registros_sire_sunat = 0
     
-    # Guardar datos para la gráfica
     datos_grafica = []
 
     for tipo in tipos_ordenados:
@@ -972,10 +972,8 @@ def generar_reporte_presentes_no_presentes_sire_sunat(df_sire_sunat, df_sire_bn,
         presentes_count = mask_presente.sum()
         no_presentes_count = total_registros - presentes_count
         
-        # Calcular porcentajes (como decimales)
         pct_presentes = (presentes_count / total_registros) if total_registros > 0 else 0
         pct_no_presentes = (no_presentes_count / total_registros) if total_registros > 0 else 0
-        pct_total = 1.0  # Siempre 100%
 
         total_presentes += presentes_count
         total_no_presentes += no_presentes_count
@@ -983,7 +981,6 @@ def generar_reporte_presentes_no_presentes_sire_sunat(df_sire_sunat, df_sire_bn,
 
         nombre_tipo = TIPOS_DOC_NOMBRES.get(tipo, tipo)
         
-        # Guardar para gráfica
         datos_grafica.append({
             'Tipo': tipo,
             'Nombre': nombre_tipo,
@@ -994,12 +991,11 @@ def generar_reporte_presentes_no_presentes_sire_sunat(df_sire_sunat, df_sire_bn,
 
         ws_resumen.cell(row=fila_actual, column=1, value=tipo)
         ws_resumen.cell(row=fila_actual, column=2, value=nombre_tipo)
-        ws_resumen.cell(row=fila_actual, column=3, value=int(presentes_count))
-        ws_resumen.cell(row=fila_actual, column=4, value=pct_presentes)
-        ws_resumen.cell(row=fila_actual, column=5, value=int(no_presentes_count))
-        ws_resumen.cell(row=fila_actual, column=6, value=pct_no_presentes)
-        ws_resumen.cell(row=fila_actual, column=7, value=int(total_registros))
-        ws_resumen.cell(row=fila_actual, column=8, value=pct_total)
+        ws_resumen.cell(row=fila_actual, column=3, value=int(total_registros))
+        ws_resumen.cell(row=fila_actual, column=4, value=int(presentes_count))
+        ws_resumen.cell(row=fila_actual, column=5, value=pct_presentes)
+        ws_resumen.cell(row=fila_actual, column=6, value=int(no_presentes_count))
+        ws_resumen.cell(row=fila_actual, column=7, value=pct_no_presentes)
         fila_actual += 1
 
     # Fila de TOTAL
@@ -1008,26 +1004,24 @@ def generar_reporte_presentes_no_presentes_sire_sunat(df_sire_sunat, df_sire_bn,
     
     ws_resumen.cell(row=fila_actual, column=1, value='TOTAL')
     ws_resumen.cell(row=fila_actual, column=2, value='')
-    ws_resumen.cell(row=fila_actual, column=3, value=int(total_presentes))
-    ws_resumen.cell(row=fila_actual, column=4, value=pct_total_presentes)
-    ws_resumen.cell(row=fila_actual, column=5, value=int(total_no_presentes))
-    ws_resumen.cell(row=fila_actual, column=6, value=pct_total_no_presentes)
-    ws_resumen.cell(row=fila_actual, column=7, value=int(total_registros_sire_sunat))
-    ws_resumen.cell(row=fila_actual, column=8, value=1.0)
+    ws_resumen.cell(row=fila_actual, column=3, value=int(total_registros_sire_sunat))
+    ws_resumen.cell(row=fila_actual, column=4, value=int(total_presentes))
+    ws_resumen.cell(row=fila_actual, column=5, value=pct_total_presentes)
+    ws_resumen.cell(row=fila_actual, column=6, value=int(total_no_presentes))
+    ws_resumen.cell(row=fila_actual, column=7, value=pct_total_no_presentes)
 
     _aplicar_formato_encabezado(ws_resumen, row=2)
     
-    # Negrita para la fila de total
-    for col_idx in range(1, 9):
+    for col_idx in range(1, 8):
         ws_resumen.cell(row=fila_actual, column=col_idx).font = Font(bold=True)
 
-    # Formato de porcentaje para columnas D, F, H (índices 4, 6, 8)
+    # Formato de porcentaje para columnas 5 y 7
     for row in range(3, fila_actual + 1):
-        for col_idx in [4, 6, 8]:
+        for col_idx in [5, 7]:
             cell = ws_resumen.cell(row=row, column=col_idx)
             cell.number_format = '0.00%'
 
-    # ---- BARRAS DE DATOS para columnas de porcentaje (D, F, H) ----
+    # ---- BARRAS DE DATOS para columnas de porcentaje ----
     data_bar_rule = DataBarRule(
         start_type='min',
         end_type='max',
@@ -1036,41 +1030,28 @@ def generar_reporte_presentes_no_presentes_sire_sunat(df_sire_sunat, df_sire_bn,
         minLength=None,
         maxLength=None
     )
+    
     if fila_actual > 3:
-        # Columna D (Presentes %)
-        ws_resumen.conditional_formatting.add(
-            f'D3:D{fila_actual-1}',
-            data_bar_rule
-        )
-        # Columna F (No presentes %)
-        ws_resumen.conditional_formatting.add(
-            f'F3:F{fila_actual-1}',
-            data_bar_rule
-        )
-        # Columna H (Total %)
-        ws_resumen.conditional_formatting.add(
-            f'H3:H{fila_actual-1}',
-            data_bar_rule
-        )
+        ws_resumen.conditional_formatting.add(f'E3:E{fila_actual-1}', data_bar_rule)
+        ws_resumen.conditional_formatting.add(f'G3:G{fila_actual-1}', data_bar_rule)
 
-    # Ajustar ancho de columnas
+    # Ajustar ancho de columnas (7 columnas)
     ws_resumen.column_dimensions['A'].width = 20
     ws_resumen.column_dimensions['B'].width = 30
     ws_resumen.column_dimensions['C'].width = 22
-    ws_resumen.column_dimensions['D'].width = 18
-    ws_resumen.column_dimensions['E'].width = 25
-    ws_resumen.column_dimensions['F'].width = 18
-    ws_resumen.column_dimensions['G'].width = 22
-    ws_resumen.column_dimensions['H'].width = 18
+    ws_resumen.column_dimensions['D'].width = 22
+    ws_resumen.column_dimensions['E'].width = 18
+    ws_resumen.column_dimensions['F'].width = 22
+    ws_resumen.column_dimensions['G'].width = 18
 
-    # ---- DESCRIPCIÓN EXPLICATIVA (3-4 líneas debajo de la tabla) ----
+    # ---- DESCRIPCIÓN EXPLICATIVA ----
     fila_descripcion = fila_actual + 3
 
+
     descripcion = [
-        "DESCRIPCIÓN DEL REPORTE:",
-        "Este reporte compara los comprobantes registrados en SIRE_SUNAT y SIRE_BN.",
-        "• Coincidencia (%): Porcentaje de registros que están en ambos sistemas.",
-        "• No coincidencia (%): Porcentaje de registros que faltan en uno de los sistemas.",
+        "DESCRIPCIÓN DEL REPORTE: Coincidencia (%): Porcentaje de registros que están en ambos sistemas. No coincidencia (%): Porcentaje de registros que faltan en uno de los sistemas.",
+        "• Agregar Grafico circular para visualizar la proporción de registros presentes y no presentes.",
+        "• Agregar Grafico de barras para comparar la cantidad de registros por tipo de documento.",
     ]
     
     for i, linea in enumerate(descripcion):
@@ -1086,19 +1067,14 @@ def generar_reporte_presentes_no_presentes_sire_sunat(df_sire_sunat, df_sire_bn,
     if datos_grafica:
         df_grafica = pd.DataFrame(datos_grafica)
         
-        # Crear figura y ejes
         fig, ax = plt.subplots(figsize=(10, 6))
-        
-        # Configurar posición de barras
         x = range(len(df_grafica))
         width = 0.25
         
-        # Barras
         ax.bar([i - width for i in x], df_grafica['Presentes'], width, label='Presentes en SIRE_BN', color='#2563EB')
         ax.bar(x, df_grafica['No_Presentes'], width, label='No presentes en SIRE_BN', color='#EF4444')
         ax.bar([i + width for i in x], df_grafica['Total'], width, label='Total en SIRE_SUNAT', color='#10B981')
         
-        # Configurar ejes
         ax.set_xlabel('Tipo de Documento')
         ax.set_ylabel('Cantidad de Registros')
         ax.set_title('Conciliación por Tipo de Documento')
@@ -1106,33 +1082,44 @@ def generar_reporte_presentes_no_presentes_sire_sunat(df_sire_sunat, df_sire_bn,
         ax.set_xticklabels(df_grafica['Tipo'], rotation=45, ha='right')
         ax.legend()
         
-        # Ajustar layout
         plt.tight_layout()
         
-        # Guardar gráfica en memoria como imagen
         img_buffer = io.BytesIO()
         plt.savefig(img_buffer, format='png', dpi=100, bbox_inches='tight')
         img_buffer.seek(0)
         plt.close()
         
-        # Insertar imagen en Excel
         img = Image(img_buffer)
-        # Ajustar tamaño de la imagen
         img.width = 700
         img.height = 400
         
-        # Calcular posición (debajo de la descripción)
         fila_grafica = fila_descripcion + len(descripcion) + 2
-        # Convertir fila a coordenada de celda (columna A)
-        from openpyxl.utils import get_column_letter
         posicion = f'A{fila_grafica}'
         ws_resumen.add_image(img, posicion)
 
-    # ---- GUARDAR ARCHIVO CON OPENPYXL (MANTIENE FORMATO) ----
-    wb.save(ruta_salida)
+    # ---- HOJA BD (SIRE_BD) ----
+    ws_bd = wb.create_sheet("SIRE_BD")
     
+    ws_bd['A1'] = 'PROPUESTA SIRE_SUNAT (SIRE_BD)'
+    ws_bd.merge_cells('A1:L1')
+    ws_bd['A1'].font = Font(bold=True, size=14, color="FFFFFF")
+    ws_bd['A1'].fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
+    ws_bd['A1'].alignment = Alignment(horizontal='center', vertical='center')
+    
+    ws_bd['A3'] = 'Total registros:'
+    ws_bd['A3'].font = Font(bold=True)
+    ws_bd['B3'] = len(df_sire_sunat)
+    
+    ws_bd['A5'] = 'Tabla principal (Propuesta) usada para hacer la conciliación:'
+    ws_bd['A5'].font = Font(bold=True)
+    
+    for col in ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M']:
+        ws_bd.column_dimensions[col].width = 15
+
+    # ---- GUARDAR ARCHIVO CON OPENPYXL ----
+    wb.save(ruta_salida)
+
     # ---------- HOJAS POR TIPO DE DOCUMENTO ----------
-    # (Se mantiene igual, se agregan después de guardar el archivo principal)
     from openpyxl import load_workbook
     
     wb = load_workbook(ruta_salida)
@@ -1172,7 +1159,6 @@ def generar_reporte_presentes_no_presentes_sire_sunat(df_sire_sunat, df_sire_bn,
         celda_titulo.alignment = Alignment(horizontal='center', vertical='center')
         fila_inicio += 1
 
-        # --- Sección: No presentes en SIRE_BN (con separación por mes) ---
         df_no_presentes = df_sire_sunat_tipo[~mask_presente].copy()
         
         if not df_no_presentes.empty:
@@ -1237,3 +1223,7 @@ def generar_reporte_presentes_no_presentes_sire_sunat(df_sire_sunat, df_sire_bn,
 
     wb.save(ruta_salida)
     return ruta_salida
+
+
+
+

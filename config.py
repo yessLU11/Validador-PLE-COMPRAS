@@ -1,12 +1,5 @@
 # config.py - Configuración de parámetros clave para el validador PLE Compras
-# Parámetros: columnas clave, nombres de hojas, meses a mantener
 
-# config.py
-# Este módulo define los parámetros clave para la comparación de datos, como las columnas que se 
-# usarán para detectar duplicados, los nombres de las hojas donde se encuentran los datos, 
-# y cuántos meses de histórico mantener para la comparación.
-# Este modulo se conecta con validator.py para que este sepa qué columnas usar para comparar, y 
-# con el main.py para que este sepa qué hojas leer y cuántos meses mantener.
 COLUMNAS_CLAVE = [
     "fecha_emision",      # columna E
     "tipo_comprobante",   # columna G
@@ -19,8 +12,6 @@ COLUMNAS_CLAVE = [
     "importe_total"       # columna Y
 ]
 
-# Mapeo de nombres de columna originales (Excel) a nuestros nombres internos (minúsculas)
-# Esto es útil para mantener el código más limpio y evitar errores de espacios o caracteres especiales.
 MAPEO_COLUMNAS = {
     "B": "Periodo (AAAAMM00)",
     "C": "Código Único de la Operación (CUO)",
@@ -38,6 +29,17 @@ MAPEO_COLUMNAS = {
 HOJA_PRINCIPAL = "8.1"
 HOJA_SOCIALES = "Programas Sociales"
 FILA_INICIO_PRINCIPAL = 8   # datos empiezan fila 8
-FILA_INICIO_SOCIALES = 1 # datos empiezan fila 2
+FILA_INICIO_SOCIALES = 2    # datos empiezan fila 2 
 
-MESES_A_MANTENER = 12 
+# ===== NUEVAS CONFIGURACIONES =====
+# Fila de inicio predeterminada para hojas no especificadas (8.2, 8.3, etc.)
+FILA_INICIO_PREDETERMINADA = 1
+
+# Opcional: puedes definir filas de inicio específicas para otras hojas
+HOJAS_ADICIONALES = {
+    "8.2": 1,
+    "8.3": 1,
+    # Agrega más si es necesario
+}
+
+MESES_A_MANTENER = 12
